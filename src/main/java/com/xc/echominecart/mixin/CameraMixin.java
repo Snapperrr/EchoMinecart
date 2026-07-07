@@ -31,6 +31,12 @@ public abstract class CameraMixin {
 	private static final double WALL_CAMERA_CLEARANCE = 0.54D;
 	private static final double WALL_VERTICAL_CAMERA_CLEARANCE = 0.62D;
 	private static final double WALL_CAMERA_LIFT = 0.20D;
+	private static final double ATTACHED_ROTATION_SMOOTHING_RATE = 10.5D;
+
+	private int echominecart$smoothedCartId = Integer.MIN_VALUE;
+	private boolean echominecart$hasSmoothedAttachedRotation;
+	private long echominecart$lastRotationSmoothNanos;
+	private final Quaternionf echominecart$smoothedAttachedRotation = new Quaternionf();
 
 	@Shadow
 	@Final
@@ -65,28 +71,79 @@ public abstract class CameraMixin {
 	@Inject(method = "update", at = @At("RETURN"))
 	private void echominecart$tiltFirstPersonWithAttachedMinecart(BlockView area, Entity focusedEntity, boolean thirdPerson, boolean inverseView, float tickDelta, CallbackInfo ci) {
 		if (!(focusedEntity.getVehicle() instanceof AbstractMinecartEntity minecart)) {
+			resetAttachedRotationSmoothing();
 			return;
 		}
-		RailPhysics.findContact(minecart.getWorld(), minecart).ifPresent(contact -> {
-			Direction face = contact.face();
-			if (face != Direction.UP) {
-				Quaternionf original = new Quaternionf(rotation);
-				Quaternionf attached = new Quaternionf(CarriageClientVisuals.attachedRotation(minecart, face));
-				if (face == Direction.DOWN || isVerticalWallRide(face, minecart.getVelocity())) {
-					attached.mul(RotationAxis.POSITIVE_Y.rotationDegrees(CarriageClientVisuals.planeYawDegrees(minecart, face)));
-				}
-				rotation.set(attached).mul(original);
-				refreshPlanes();
-				Vec3d anchor = safeCameraAnchor(area, contact, minecart, tickDelta);
-				setPos(anchor);
-				if (thirdPerson) {
-					float scale = focusedEntity instanceof LivingEntity living ? living.getScale() : 1.0F;
-					moveBy(-clipToSpace(4.0F * scale), 0.0F, 0.0F);
-				}
+		var contactOptional = RailPhysics.findContact(minecart.getWorld(), minecart);
+		if (contactOptional.isEmpty()) {
+			resetAttachedRotationSmoothing();
+			return;
+		}
+
+		RailPhysics.RailContact contact = contactOptional.get();
+		Direction face = contact.face();
+		Quaternionf original = new Quaternionf(rotation);
+		Quaternionf attached = smoothedAttachedRotation(minecart, targetAttachedRotation(minecart, face));
+		rotation.set(attached).mul(original);
+		refreshPlanes();
+		if (face != Direction.UP) {
+			Vec3d anchor = safeCameraAnchor(area, contact, minecart, tickDelta);
+			setPos(anchor);
+			if (thirdPerson) {
+				float scale = focusedEntity instanceof LivingEntity living ? living.getScale() : 1.0F;
+				moveBy(-clipToSpace(4.0F * scale), 0.0F, 0.0F);
 			}
-			applySubtleRideRoll(minecart, tickDelta);
-			refreshPlanes();
-		});
+		}
+		applySubtleRideRoll(minecart, tickDelta);
+		refreshPlanes();
+	}
+
+	private Quaternionf targetAttachedRotation(AbstractMinecartEntity minecart, Direction face) {
+		if (face == Direction.UP) {
+			return new Quaternionf();
+		}
+		Quaternionf attached = new Quaternionf(CarriageClientVisuals.attachedRotation(minecart, face));
+		if (face == Direction.DOWN || isVerticalWallRide(face, minecart.getVelocity())) {
+			attached.mul(RotationAxis.POSITIVE_Y.rotationDegrees(CarriageClientVisuals.planeYawDegrees(minecart, face)));
+		}
+		return attached;
+	}
+
+	private Quaternionf smoothedAttachedRotation(AbstractMinecartEntity minecart, Quaternionf target) {
+		long now = System.nanoTime();
+		target.normalize();
+		if (!echominecart$hasSmoothedAttachedRotation || echominecart$smoothedCartId != minecart.getId()) {
+			echominecart$smoothedCartId = minecart.getId();
+			echominecart$hasSmoothedAttachedRotation = true;
+			echominecart$lastRotationSmoothNanos = now;
+			echominecart$smoothedAttachedRotation.set(target);
+			return new Quaternionf(echominecart$smoothedAttachedRotation);
+		}
+
+		double deltaSeconds = echominecart$lastRotationSmoothNanos == 0L
+				? 1.0D / 60.0D
+				: (now - echominecart$lastRotationSmoothNanos) / 1_000_000_000.0D;
+		echominecart$lastRotationSmoothNanos = now;
+		deltaSeconds = Math.max(1.0D / 240.0D, Math.min(0.08D, deltaSeconds));
+		float alpha = (float) (1.0D - Math.exp(-ATTACHED_ROTATION_SMOOTHING_RATE * deltaSeconds));
+		Quaternionf shortestTarget = closestHemisphere(target);
+		echominecart$smoothedAttachedRotation.nlerp(shortestTarget, alpha).normalize();
+		return new Quaternionf(echominecart$smoothedAttachedRotation);
+	}
+
+	private Quaternionf closestHemisphere(Quaternionf target) {
+		Quaternionf adjusted = new Quaternionf(target);
+		if (echominecart$smoothedAttachedRotation.dot(adjusted) < 0.0F) {
+			adjusted.set(-adjusted.x, -adjusted.y, -adjusted.z, -adjusted.w);
+		}
+		return adjusted;
+	}
+
+	private void resetAttachedRotationSmoothing() {
+		echominecart$smoothedCartId = Integer.MIN_VALUE;
+		echominecart$hasSmoothedAttachedRotation = false;
+		echominecart$lastRotationSmoothNanos = 0L;
+		echominecart$smoothedAttachedRotation.identity();
 	}
 
 	private void applySubtleRideRoll(AbstractMinecartEntity minecart, float tickDelta) {
