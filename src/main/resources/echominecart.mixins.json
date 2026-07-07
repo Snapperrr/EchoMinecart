@@ -3,8 +3,12 @@
 	"package": "com.xc.echominecart.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
+		"CameraMixin",
 		"ChestBlockEntityRendererMixin",
+		"EntityRendererMixin",
+		"GameRendererMixin",
 		"HandledScreenMixin",
+		"InGameOverlayRendererMixin",
 		"LivingEntityRendererMixin",
 		"MinecartEntityRendererMixin",
 		"ScreenAccessor"

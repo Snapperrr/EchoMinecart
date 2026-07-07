@@ -1,5 +1,6 @@
 package com.xc.echominecart.haul;
 
+import com.xc.echominecart.NestedChestMod;
 import com.xc.echominecart.carriage.CarriageManager.GroupSnapshot;
 import com.xc.echominecart.carriage.CarriageShape;
 import net.minecraft.block.Block;
@@ -11,6 +12,7 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.decoration.DisplayEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
+import net.minecraft.inventory.Inventory;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -156,6 +158,10 @@ public final class HaulManager {
 			block.state = current;
 			BlockEntity blockEntity = world.getBlockEntity(source);
 			block.nbt = blockEntity == null ? null : blockEntity.createNbtWithIdentifyingData(world.getRegistryManager());
+			if (blockEntity instanceof Inventory inventory) {
+				inventory.clear();
+				blockEntity.markDirty();
+			}
 			DisplayEntity.BlockDisplayEntity display = new DisplayEntity.BlockDisplayEntity(EntityType.BLOCK_DISPLAY, world);
 			display.addCommandTag(HAUL_TAG);
 			display.setNoGravity(true);
@@ -166,7 +172,12 @@ public final class HaulManager {
 			display.setDisplayHeight(1.1F);
 			world.spawnEntity(display);
 			block.displayId = display.getUuid();
-			world.setBlockState(source, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL | Block.SKIP_DROPS);
+			NestedChestMod.beginSuppressChestDrops(world, source);
+			try {
+				world.setBlockState(source, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL | Block.SKIP_DROPS);
+			} finally {
+				NestedChestMod.endSuppressChestDrops(world, source);
+			}
 		}
 		for (CarriedEntity carried : haul.entities) {
 			Entity entity = world.getEntity(carried.entityId());
@@ -203,39 +214,10 @@ public final class HaulManager {
 
 	private static boolean tryPlace(ServerWorld world, AbstractMinecartEntity anchor, BoundHaul haul) {
 		BlockPos anchorBlock = anchor.getBlockPos();
-		Set<BlockPos> targets = new HashSet<>();
-		for (CarriedBlock block : haul.blocks) {
-			targets.add(anchorBlock.add(block.relativePos));
+		if (!canRestoreAll(world, anchorBlock, haul.blocks) || !restoreCarriedBlocks(world, anchorBlock, haul, false)) {
+			return false;
 		}
-		for (CarriedBlock block : haul.blocks) {
-			BlockPos target = anchorBlock.add(block.relativePos);
-			BlockState existing = world.getBlockState(target);
-			if (!existing.isAir() && !existing.isReplaceable()) {
-				return false;
-			}
-			if (!canRestore(world, block.state, target, targets)) {
-				return false;
-			}
-		}
-		for (CarriedBlock block : haul.blocks) {
-			BlockPos target = anchorBlock.add(block.relativePos);
-			world.setBlockState(target, block.state, Block.NOTIFY_ALL);
-			if (block.nbt != null) {
-				BlockEntity blockEntity = world.getBlockEntity(target);
-				if (blockEntity != null) {
-					NbtCompound copy = block.nbt.copy();
-					copy.putInt("x", target.getX());
-					copy.putInt("y", target.getY());
-					copy.putInt("z", target.getZ());
-					blockEntity.read(copy, world.getRegistryManager());
-					blockEntity.markDirty();
-				}
-			}
-			Entity display = block.displayId == null ? null : world.getEntity(block.displayId);
-			if (display != null) {
-				display.discard();
-			}
-		}
+		discardDisplays(world, haul);
 		for (CarriedEntity carried : haul.entities) {
 			Entity entity = world.getEntity(carried.entityId());
 			if (entity != null) {
@@ -246,36 +228,14 @@ public final class HaulManager {
 	}
 
 	private static void emergencyRelease(ServerWorld world, BoundHaul haul) {
-		Set<BlockPos> targets = new HashSet<>();
+		discardDisplays(world, haul);
 		for (CarriedBlock block : haul.blocks) {
-			targets.add(haul.sourceAnchorBlock.add(block.relativePos));
-		}
-		for (CarriedBlock block : haul.blocks) {
-			Entity display = block.displayId == null ? null : world.getEntity(block.displayId);
-			if (display != null) {
-				display.discard();
-			}
 			if (!haul.pickedUp || block.state == null || block.state.isAir()) {
-				continue;
+				block.missing = true;
 			}
-			BlockPos target = haul.sourceAnchorBlock.add(block.relativePos);
-			BlockState existing = world.getBlockState(target);
-			if ((!existing.isAir() && !existing.isReplaceable()) || !canRestore(world, block.state, target, targets)) {
-				Block.dropStacks(block.state, world, target);
-				continue;
-			}
-			world.setBlockState(target, block.state, Block.NOTIFY_ALL);
-			if (block.nbt != null) {
-				BlockEntity blockEntity = world.getBlockEntity(target);
-				if (blockEntity != null) {
-					NbtCompound copy = block.nbt.copy();
-					copy.putInt("x", target.getX());
-					copy.putInt("y", target.getY());
-					copy.putInt("z", target.getZ());
-					blockEntity.read(copy, world.getRegistryManager());
-					blockEntity.markDirty();
-				}
-			}
+		}
+		if (haul.pickedUp) {
+			restoreCarriedBlocks(world, haul.sourceAnchorBlock, haul, true);
 		}
 		for (CarriedEntity carried : haul.entities) {
 			Entity entity = world.getEntity(carried.entityId());
@@ -283,6 +243,94 @@ public final class HaulManager {
 				entity.setNoGravity(carried.hadNoGravity());
 			}
 		}
+	}
+
+	private static boolean canRestoreAll(ServerWorld world, BlockPos anchorBlock, List<CarriedBlock> blocks) {
+		Set<BlockPos> targets = carriedTargets(anchorBlock, blocks);
+		for (CarriedBlock block : blocks) {
+			if (block.missing || block.state == null || block.state.isAir()) {
+				continue;
+			}
+			BlockPos target = anchorBlock.add(block.relativePos);
+			BlockState existing = world.getBlockState(target);
+			if (!existing.isAir() && !existing.isReplaceable()) {
+				return false;
+			}
+			if (!canRestore(world, block.state, target, targets)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static boolean restoreCarriedBlocks(ServerWorld world, BlockPos anchorBlock, BoundHaul haul, boolean dropOnFailure) {
+		List<CarriedBlock> remaining = new ArrayList<>();
+		for (CarriedBlock block : haul.blocks) {
+			if (!block.missing && block.state != null && !block.state.isAir()) {
+				remaining.add(block);
+			}
+		}
+		while (!remaining.isEmpty()) {
+			boolean progressed = false;
+			for (int i = 0; i < remaining.size(); i++) {
+				CarriedBlock block = remaining.get(i);
+				BlockPos target = anchorBlock.add(block.relativePos);
+				if (block.state.canPlaceAt(world, target)) {
+					placeCarriedBlock(world, target, block);
+					remaining.remove(i--);
+					progressed = true;
+				}
+			}
+			if (!progressed) {
+				break;
+			}
+		}
+		if (remaining.isEmpty()) {
+			return true;
+		}
+		if (!dropOnFailure) {
+			return false;
+		}
+		for (CarriedBlock block : remaining) {
+			BlockPos target = anchorBlock.add(block.relativePos);
+			if (world.getBlockState(target).isAir() || world.getBlockState(target).isReplaceable()) {
+				world.setBlockState(target, block.state, Block.NOTIFY_ALL | Block.FORCE_STATE);
+				restoreBlockEntity(world, target, block);
+			} else {
+				Block.dropStacks(block.state, world, target);
+			}
+		}
+		return true;
+	}
+
+	private static void placeCarriedBlock(ServerWorld world, BlockPos target, CarriedBlock block) {
+		world.setBlockState(target, block.state, Block.NOTIFY_ALL);
+		restoreBlockEntity(world, target, block);
+	}
+
+	private static void restoreBlockEntity(ServerWorld world, BlockPos target, CarriedBlock block) {
+		if (block.nbt == null) {
+			return;
+		}
+		BlockEntity blockEntity = world.getBlockEntity(target);
+		if (blockEntity != null) {
+			NbtCompound copy = block.nbt.copy();
+			copy.putInt("x", target.getX());
+			copy.putInt("y", target.getY());
+			copy.putInt("z", target.getZ());
+			blockEntity.read(copy, world.getRegistryManager());
+			blockEntity.markDirty();
+		}
+	}
+
+	private static Set<BlockPos> carriedTargets(BlockPos anchorBlock, List<CarriedBlock> blocks) {
+		Set<BlockPos> targets = new HashSet<>();
+		for (CarriedBlock block : blocks) {
+			if (!block.missing && block.state != null && !block.state.isAir()) {
+				targets.add(anchorBlock.add(block.relativePos));
+			}
+		}
+		return targets;
 	}
 
 	private static boolean canRestore(ServerWorld world, BlockState state, BlockPos target, Set<BlockPos> carriedTargets) {

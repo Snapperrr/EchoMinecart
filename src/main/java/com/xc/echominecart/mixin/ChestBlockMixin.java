@@ -27,9 +27,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ChestBlock.class)
 public abstract class ChestBlockMixin {
-	@Inject(method = "onStateReplaced", at = @At("HEAD"))
+	@Inject(method = "onStateReplaced", at = @At("HEAD"), cancellable = true)
 	private void echominecart$sanitizeChestDrops(BlockState state, World world, BlockPos pos, BlockState newState, boolean moved, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
 		if (world.isClient || state.isOf(newState.getBlock())) {
+			return;
+		}
+		if (NestedChestMod.isChestDropSuppressed(world, pos)) {
+			ci.cancel();
 			return;
 		}
 		BlockEntity blockEntity = world.getBlockEntity(pos);

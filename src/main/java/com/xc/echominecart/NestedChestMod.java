@@ -28,6 +28,7 @@ import net.minecraft.item.Items;
 import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.screen.ScreenHandler;
@@ -70,6 +71,7 @@ public class NestedChestMod implements ModInitializer {
 	private static final Map<UUID, QuickCraftSession> QUICK_CRAFT_SESSIONS = new HashMap<>();
 	// 漏斗插入回调拿不到世界对象时，用本线程上下文把当前漏斗所在世界传进来。
 	private static final ThreadLocal<World> HOPPER_TRANSFER_WORLD = new ThreadLocal<>();
+	private static final ThreadLocal<Set<SuppressedChestDrop>> SUPPRESSED_CHEST_DROPS = ThreadLocal.withInitial(HashSet::new);
 	private static int checkpointTicks;
 
 	@Override
@@ -366,6 +368,9 @@ public class NestedChestMod implements ModInitializer {
 	}
 
 	public static void sanitizeChestDrops(World world, BlockPos pos, Inventory inventory) {
+		if (isChestDropSuppressed(world, pos)) {
+			return;
+		}
 		if (world.isClient() || world.getServer() == null) {
 			sanitizeChestDrops(inventory);
 			return;
@@ -386,6 +391,22 @@ public class NestedChestMod implements ModInitializer {
 				inventory.setStack(slot, sanitized);
 			}
 		}
+	}
+
+	public static void beginSuppressChestDrops(World world, BlockPos pos) {
+		SUPPRESSED_CHEST_DROPS.get().add(SuppressedChestDrop.of(world, pos));
+	}
+
+	public static void endSuppressChestDrops(World world, BlockPos pos) {
+		Set<SuppressedChestDrop> suppressed = SUPPRESSED_CHEST_DROPS.get();
+		suppressed.remove(SuppressedChestDrop.of(world, pos));
+		if (suppressed.isEmpty()) {
+			SUPPRESSED_CHEST_DROPS.remove();
+		}
+	}
+
+	public static boolean isChestDropSuppressed(World world, BlockPos pos) {
+		return SUPPRESSED_CHEST_DROPS.get().contains(SuppressedChestDrop.of(world, pos));
 	}
 
 	private static void dropStoredNestedContents(World world, BlockPos pos, NestedChestStorage storage, ItemStack rootStack, Set<String> visitedStorageIds) {
@@ -1030,6 +1051,12 @@ public class NestedChestMod implements ModInitializer {
 	}
 
 	private record SortableStack(ItemStack stack, int originalSlot) {
+	}
+
+	private record SuppressedChestDrop(RegistryKey<World> world, long pos) {
+		private static SuppressedChestDrop of(World world, BlockPos pos) {
+			return new SuppressedChestDrop(world.getRegistryKey(), pos.asLong());
+		}
 	}
 
 	private enum SortMode {

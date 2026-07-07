@@ -464,16 +464,24 @@ public class OmniRailBlock extends AbstractRailBlock {
 		// 充能铁轨沿已连接的同类轨道传播动力，最多 8 格，和原版手感接近。
 		for (Direction tangent : connections(state)) {
 			RailLink link = findLink(world, pos, state.get(FACE), tangent);
-			if (link == null) {
-				continue;
-			}
-			BlockState neighbor = world.getBlockState(link.pos());
-			if (neighbor.getBlock() instanceof OmniRailBlock rail && rail.accelerates
-					&& (world.isReceivingRedstonePower(link.pos()) || rail.receivesChainedPower(world, link.pos(), neighbor, depth + 1))) {
+			if (link != null && receivesRailPowerFrom(world, link.pos(), depth)) {
 				return true;
+			}
+			if (state.get(FACE) == Direction.UP && tangent.getAxis().isHorizontal()) {
+				if (receivesRailPowerFrom(world, pos.offset(tangent).up(), depth)
+						|| receivesRailPowerFrom(world, pos.offset(tangent).down(), depth)) {
+					return true;
+				}
 			}
 		}
 		return false;
+	}
+
+	private boolean receivesRailPowerFrom(WorldAccess world, BlockPos pos, int depth) {
+		BlockState neighbor = world.getBlockState(pos);
+		return neighbor.getBlock() instanceof OmniRailBlock rail
+				&& rail.accelerates
+				&& (world.isReceivingRedstonePower(pos) || rail.receivesChainedPower(world, pos, neighbor, depth + 1));
 	}
 
 	public enum LinkKind {

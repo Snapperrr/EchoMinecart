@@ -28,6 +28,9 @@ public final class RailPhysics {
 	private static final double CONTACT_RANGE_SQ = 2.25D;
 	private static final double POWERED_BOOST = 0.09D;
 	private static final double FLAT_POWERED_BOOST = 0.06D;
+	private static final double POWERED_SLOPE_BOOST = 0.075D;
+	private static final double MIN_UPHILL_SPEED = 0.055D;
+	private static final double MIN_POWERED_UPHILL_SPEED = 0.095D;
 	private static final double MIN_TRAVEL_SPEED = 0.01D;
 	private static final double CORNER_EXIT_SPEED = 0.34D;
 	private static final double ENTRY_EDGE_OFFSET = 0.45D;
@@ -41,6 +44,7 @@ public final class RailPhysics {
 
 	private static final Set<UUID> CONTROLLED = new HashSet<>();
 	private static final Map<UUID, ForcedContact> TRANSITION_LOCKS = new HashMap<>();
+	private static final Map<UUID, Long> DETACHED_UNTIL = new HashMap<>();
 
 	private RailPhysics() {
 	}
@@ -52,6 +56,7 @@ public final class RailPhysics {
 	public static void forgetCarts(Set<UUID> liveCartIds) {
 		CONTROLLED.retainAll(liveCartIds);
 		TRANSITION_LOCKS.keySet().retainAll(liveCartIds);
+		DETACHED_UNTIL.keySet().retainAll(liveCartIds);
 	}
 
 	public static void beforeCartTick(AbstractMinecartEntity cart) {
@@ -59,7 +64,10 @@ public final class RailPhysics {
 			return;
 		}
 		Optional<RailContact> forced = forcedContact(world, cart);
-		Optional<RailContact> found = forced.or(() -> findContact(world, cart));
+		boolean detached = isDetached(world, cart);
+		Optional<RailContact> found = detached
+				? forced.or(() -> findContact(world, cart, Direction.UP))
+				: forced.or(() -> findContact(world, cart));
 		if (found.isEmpty()) {
 			CONTROLLED.remove(cart.getUuid());
 			TRANSITION_LOCKS.remove(cart.getUuid());
@@ -117,14 +125,15 @@ public final class RailPhysics {
 	private static void assistGroundAscending(AbstractMinecartEntity cart, RailContact contact, Direction ascending) {
 		CONTROLLED.remove(cart.getUuid());
 		cart.setNoGravity(false);
-		Vec3d velocity = applyFlatPoweredBehavior(contact, cart.getVelocity());
+		Vec3d velocity = applySlopePoweredBehavior(contact, cart.getVelocity(), ascending);
 		Vec3d uphill = Vec3d.of(ascending.getVector());
 		double climb = new Vec3d(velocity.x, 0.0D, velocity.z).dotProduct(uphill);
-		if (climb > 0.0D && climb < 0.055D) {
-			velocity = velocity.add(uphill.multiply(0.055D - climb));
-			cart.setVelocity(clamp(velocity, MAX_ATTACHED_SPEED));
-			cart.velocityModified = true;
+		double minimum = OmniRailBlock.isAccelerating(contact.state()) ? MIN_POWERED_UPHILL_SPEED : MIN_UPHILL_SPEED;
+		if (climb > 0.0D && climb < minimum) {
+			velocity = velocity.add(uphill.multiply(minimum - climb));
 		}
+		cart.setVelocity(clamp(velocity, MAX_ATTACHED_SPEED));
+		cart.velocityModified = true;
 	}
 
 	/** 拐角接近段：无碰撞的平地积分，保住速度直到 tryCornerTransition 触发。 */
@@ -227,6 +236,9 @@ public final class RailPhysics {
 
 		velocity = applyPassengerInput(cart, velocity, face);
 		velocity = tangent.multiply(velocity.dotProduct(tangent));
+		if (detachAtAttachedEnd(cart, contact, velocity)) {
+			return;
+		}
 		velocity = stopAtDeadAttachedEnd(cart, contact, velocity);
 		if (velocity.lengthSquared() < 0.0025D) {
 			Direction rescueTravel = velocity.dotProduct(tangent) < 0.0D
@@ -247,6 +259,77 @@ public final class RailPhysics {
 		cart.setPosition(x, y, z);
 		cart.setVelocity(velocity);
 		cart.velocityModified = true;
+	}
+
+	private static boolean isDetached(ServerWorld world, AbstractMinecartEntity cart) {
+		Long until = DETACHED_UNTIL.get(cart.getUuid());
+		if (until == null) {
+			return false;
+		}
+		if (world.getTime() <= until) {
+			return true;
+		}
+		DETACHED_UNTIL.remove(cart.getUuid());
+		return false;
+	}
+
+	private static boolean detachAtAttachedEnd(AbstractMinecartEntity cart, RailContact contact, Vec3d velocity) {
+		if (contact.face() == Direction.UP) {
+			return false;
+		}
+		Direction travel = deadEndTravel(cart, contact, velocity);
+		if (travel == null) {
+			return false;
+		}
+		Vec3d normal = Vec3d.of(contact.face().getVector());
+		cart.setPosition(cart.getPos().add(normal.multiply(0.18D)));
+		cart.setVelocity(velocity.add(normal.multiply(0.08D)));
+		cart.velocityModified = true;
+		cart.setNoGravity(false);
+		CONTROLLED.remove(cart.getUuid());
+		TRANSITION_LOCKS.remove(cart.getUuid());
+		if (cart.getWorld() instanceof ServerWorld world) {
+			DETACHED_UNTIL.put(cart.getUuid(), world.getTime() + 12L);
+		}
+		return true;
+	}
+
+	private static Direction deadEndTravel(AbstractMinecartEntity cart, RailContact contact, Vec3d velocity) {
+		if (velocity.lengthSquared() < 0.0025D) {
+			return null;
+		}
+		Direction travel = Direction.getFacing(velocity.x, velocity.y, velocity.z);
+		if (velocity.dotProduct(Vec3d.of(travel.getVector())) > 0.035D
+				&& isPastUnlinkedEdge(cart, contact, travel, velocity)) {
+			return travel;
+		}
+		return null;
+	}
+
+	private static boolean isPastUnlinkedEdge(AbstractMinecartEntity cart, RailContact contact, Direction travel, Vec3d velocity) {
+		if (!OmniRailBlock.planeTangents(contact.face()).contains(travel)) {
+			return false;
+		}
+		if (OmniRailBlock.findLink(cart.getWorld(), contact.pos(), contact.face(), travel) != null) {
+			return false;
+		}
+		if (hasAnyRailCandidate(cart, contact, travel)) {
+			return false;
+		}
+		Vec3d direction = Vec3d.of(travel.getVector());
+		Vec3d surface = surfacePoint(contact.pos(), contact.face());
+		double along = cart.getPos().subtract(surface).dotProduct(direction);
+		double predictedAlong = along + Math.max(0.0D, velocity.dotProduct(direction));
+		return predictedAlong > 0.86D;
+	}
+
+	private static boolean hasAnyRailCandidate(AbstractMinecartEntity cart, RailContact contact, Direction travel) {
+		for (RailLink candidate : OmniRailBlock.linkCandidates(contact.pos(), contact.face(), travel)) {
+			if (OmniRailBlock.isOmniRail(cart.getWorld().getBlockState(candidate.pos()))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static Direction poweredStartDirection(AbstractMinecartEntity cart, RailContact contact, Vec3d tangent) {
@@ -282,7 +365,7 @@ public final class RailPhysics {
 		}
 		Vec3d surface = surfacePoint(contact.pos(), contact.face());
 		double along = cart.getPos().subtract(surface).dotProduct(Vec3d.of(travel.getVector()));
-		if (along > 0.42D) {
+		if (along > 0.90D) {
 			return Vec3d.ZERO;
 		}
 		return velocity;
@@ -639,6 +722,23 @@ public final class RailPhysics {
 			if (velocity.horizontalLengthSquared() < 4.0E-4D) {
 				velocity = new Vec3d(0.0D, velocity.y, 0.0D);
 			}
+		}
+		return clamp(velocity, MAX_ATTACHED_SPEED);
+	}
+
+	private static Vec3d applySlopePoweredBehavior(RailContact contact, Vec3d velocity, Direction ascending) {
+		if (!OmniRailBlock.isPoweredRail(contact.state())) {
+			return velocity;
+		}
+		Vec3d uphill = Vec3d.of(ascending.getVector());
+		Vec3d horizontal = new Vec3d(velocity.x, 0.0D, velocity.z);
+		double climb = horizontal.dotProduct(uphill);
+		if (OmniRailBlock.isAccelerating(contact.state())) {
+			if (Math.abs(climb) > 1.0E-4D) {
+				velocity = velocity.add(uphill.multiply(Math.signum(climb) * POWERED_SLOPE_BOOST));
+			}
+		} else {
+			velocity = new Vec3d(velocity.x * 0.45D, velocity.y, velocity.z * 0.45D);
 		}
 		return clamp(velocity, MAX_ATTACHED_SPEED);
 	}

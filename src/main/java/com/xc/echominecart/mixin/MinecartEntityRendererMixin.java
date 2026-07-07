@@ -59,9 +59,16 @@ public abstract class MinecartEntityRendererMixin {
 			at = @At(value = "INVOKE", target = "Lnet/minecraft/client/util/math/MatrixStack;scale(FFF)V", ordinal = 1))
 	private void echominecart$renderAttachedChests(AbstractMinecartEntity minecart, float yaw, float tickDelta, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, CallbackInfo ci) {
 		List<CarriageClientVisuals.RenderChest> chests = CarriageClientVisuals.chestOffsets(minecart, yaw);
+		CarriageClientVisuals.RenderScale bodyScale = CarriageClientVisuals.renderScale(minecart, yaw);
 		for (CarriageClientVisuals.RenderChest chest : chests) {
 			matrices.push();
-			matrices.translate(chest.x(), chest.y(), chest.z());
+			matrices.translate(bodyScale.offsetX(), bodyScale.offsetY(), bodyScale.offsetZ());
+			matrices.scale(bodyScale.x(), bodyScale.y(), bodyScale.z());
+			matrices.translate(
+					(chest.x() - bodyScale.offsetX()) / bodyScale.x(),
+					(chest.y() - bodyScale.offsetY()) / bodyScale.y(),
+					(chest.z() - bodyScale.offsetZ()) / bodyScale.z());
+			matrices.scale(1.0F / bodyScale.x(), 1.0F / bodyScale.y(), 1.0F / bodyScale.z());
 			matrices.scale(0.72F, 0.72F, 0.72F);
 			matrices.translate(-0.5F, -0.12F, -0.5F);
 			blockRenderManager.renderBlockAsEntity(
