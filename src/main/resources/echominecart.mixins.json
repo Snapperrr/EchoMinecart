@@ -1,0 +1,22 @@
+{
+	"required": true,
+	"package": "com.xc.echominecart.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"ChestBlockEntityRendererMixin",
+		"HandledScreenMixin",
+		"LivingEntityRendererMixin",
+		"MinecartEntityRendererMixin",
+		"ScreenAccessor"
+	],
+	"mixins": [
+		"AbstractMinecartEntityMixin",
+		"ChestBlockMixin",
+		"EntityPassengerMixin",
+		"HopperBlockEntityMixin",
+		"LivingEntityDamageMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

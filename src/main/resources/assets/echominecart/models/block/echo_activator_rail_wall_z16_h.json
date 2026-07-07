@@ -1,0 +1,7 @@
+{
+	"parent": "echominecart:block/echo_rail_wall_z16",
+	"textures": {
+		"rail": "minecraft:block/activator_rail",
+		"particle": "#rail"
+	}
+}

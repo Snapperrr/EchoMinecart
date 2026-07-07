@@ -1,0 +1,7 @@
+{
+	"parent": "echominecart:block/echo_rail_wall_z0",
+	"textures": {
+		"rail": "minecraft:block/powered_rail",
+		"particle": "#rail"
+	}
+}

@@ -1,0 +1,30 @@
+{
+	"schemaVersion": 1,
+	"id": "echominecart",
+	"version": "${version}",
+	"name": "Echo Minecart",
+	"description": "Reworks minecart behavior with connected storage, linked carts, rail traps, and structure hauling.",
+	"authors": [
+		"xc"
+	],
+	"contact": {},
+	"license": "MIT",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.xc.echominecart.NestedChestMod"
+		],
+		"client": [
+			"com.xc.echominecart.client.NestedChestClient"
+		]
+	},
+	"mixins": [
+		"echominecart.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.16.0",
+		"fabric-api": "*",
+		"minecraft": "~1.21.1",
+		"java": ">=21"
+	}
+}

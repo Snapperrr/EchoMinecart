@@ -1,0 +1,820 @@
+﻿{
+    "multipart":  [
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "south",
+                                       "up":  "true",
+                                       "shape":  "ascending_north"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_edge_ceiling"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "south",
+                                       "up":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_z0"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "south",
+                                       "down":  "true",
+                                       "shape":  "ascending_south"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_edge_floor"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "south",
+                                       "up":  "false",
+                                       "down":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_z0"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "south",
+                                       "east":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_z0_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "south",
+                                       "east":  "false",
+                                       "west":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_z0_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "north",
+                                       "up":  "true",
+                                       "shape":  "ascending_north"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_edge_ceiling",
+                                        "y":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "north",
+                                       "up":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_z16"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "north",
+                                       "down":  "true",
+                                       "shape":  "ascending_south"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_edge_floor",
+                                        "y":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "north",
+                                       "up":  "false",
+                                       "down":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_z16"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "north",
+                                       "east":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_z16_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "north",
+                                       "east":  "false",
+                                       "west":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_z16_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "west",
+                                       "up":  "true",
+                                       "shape":  "ascending_north"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_edge_ceiling",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "west",
+                                       "up":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_x16"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "west",
+                                       "down":  "true",
+                                       "shape":  "ascending_south"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_edge_floor",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "west",
+                                       "up":  "false",
+                                       "down":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_x16"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "west",
+                                       "north":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_x16_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "west",
+                                       "north":  "false",
+                                       "south":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_x16_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "east",
+                                       "up":  "true",
+                                       "shape":  "ascending_north"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_edge_ceiling",
+                                        "y":  270
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "east",
+                                       "up":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_x0"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "east",
+                                       "down":  "true",
+                                       "shape":  "ascending_south"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_edge_floor",
+                                        "y":  270
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "east",
+                                       "up":  "false",
+                                       "down":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_x0"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "east",
+                                       "north":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_x0_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "east",
+                                       "north":  "false",
+                                       "south":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_wall_x0_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "up",
+                                       "north":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "up",
+                                       "north":  "false",
+                                       "south":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "up",
+                                       "east":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "up",
+                                       "east":  "false",
+                                       "west":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "down",
+                                       "north":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail",
+                                        "x":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "down",
+                                       "north":  "false",
+                                       "south":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail",
+                                        "x":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "down",
+                                       "east":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail",
+                                        "x":  180,
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "false",
+                                       "face":  "down",
+                                       "east":  "false",
+                                       "west":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail",
+                                        "x":  180,
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "south",
+                                       "up":  "true",
+                                       "shape":  "ascending_north"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_edge_ceiling"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "south",
+                                       "up":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_z0"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "south",
+                                       "down":  "true",
+                                       "shape":  "ascending_south"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_edge_floor"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "south",
+                                       "up":  "false",
+                                       "down":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_z0"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "south",
+                                       "east":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_z0_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "south",
+                                       "east":  "false",
+                                       "west":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_z0_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "north",
+                                       "up":  "true",
+                                       "shape":  "ascending_north"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_edge_ceiling",
+                                        "y":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "north",
+                                       "up":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_z16"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "north",
+                                       "down":  "true",
+                                       "shape":  "ascending_south"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_edge_floor",
+                                        "y":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "north",
+                                       "up":  "false",
+                                       "down":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_z16"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "north",
+                                       "east":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_z16_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "north",
+                                       "east":  "false",
+                                       "west":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_z16_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "west",
+                                       "up":  "true",
+                                       "shape":  "ascending_north"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_edge_ceiling",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "west",
+                                       "up":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_x16"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "west",
+                                       "down":  "true",
+                                       "shape":  "ascending_south"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_edge_floor",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "west",
+                                       "up":  "false",
+                                       "down":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_x16"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "west",
+                                       "north":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_x16_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "west",
+                                       "north":  "false",
+                                       "south":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_x16_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "east",
+                                       "up":  "true",
+                                       "shape":  "ascending_north"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_edge_ceiling",
+                                        "y":  270
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "east",
+                                       "up":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_x0"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "east",
+                                       "down":  "true",
+                                       "shape":  "ascending_south"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_edge_floor",
+                                        "y":  270
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "east",
+                                       "up":  "false",
+                                       "down":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_x0"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "east",
+                                       "north":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_x0_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "east",
+                                       "north":  "false",
+                                       "south":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on_wall_x0_h"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "up",
+                                       "north":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "up",
+                                       "north":  "false",
+                                       "south":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "up",
+                                       "east":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "up",
+                                       "east":  "false",
+                                       "west":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "down",
+                                       "north":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on",
+                                        "x":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "down",
+                                       "north":  "false",
+                                       "south":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on",
+                                        "x":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "down",
+                                       "east":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on",
+                                        "x":  180,
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "powered":  "true",
+                                       "face":  "down",
+                                       "east":  "false",
+                                       "west":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "echominecart:block/echo_powered_rail_on",
+                                        "x":  180,
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "up",
+                                       "shape":  "ascending_north",
+                                       "powered":  "false"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/powered_rail_raised_ne"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "up",
+                                       "shape":  "ascending_south",
+                                       "powered":  "false"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/powered_rail_raised_sw"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "up",
+                                       "shape":  "ascending_east",
+                                       "powered":  "false"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/powered_rail_raised_ne",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "up",
+                                       "shape":  "ascending_west",
+                                       "powered":  "false"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/powered_rail_raised_sw",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "up",
+                                       "shape":  "ascending_north",
+                                       "powered":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/powered_rail_on_raised_ne"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "up",
+                                       "shape":  "ascending_south",
+                                       "powered":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/powered_rail_on_raised_sw"
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "up",
+                                       "shape":  "ascending_east",
+                                       "powered":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/powered_rail_on_raised_ne",
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "up",
+                                       "shape":  "ascending_west",
+                                       "powered":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/powered_rail_on_raised_sw",
+                                        "y":  90
+                                    }
+                      }
+                  ]
+}

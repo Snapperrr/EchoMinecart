@@ -1,0 +1,9 @@
+{
+	"block.echominecart.echo_rail": "Echo Rail",
+	"block.echominecart.echo_powered_rail": "Echo Powered Rail",
+	"block.echominecart.echo_detector_rail": "Echo Detector Rail",
+	"block.echominecart.echo_activator_rail": "Echo Activator Rail",
+	"item.echominecart.minecart_link_tool": "Minecart Split/Merge Tool",
+	"item.echominecart.transport_binder": "Transport Binder",
+	"item.echominecart.booster_rod": "Booster Rod"
+}

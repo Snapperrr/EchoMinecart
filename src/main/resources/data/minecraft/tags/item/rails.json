@@ -1,0 +1,9 @@
+{
+	"replace": false,
+	"values": [
+		"echominecart:echo_rail",
+		"echominecart:echo_powered_rail",
+		"echominecart:echo_detector_rail",
+		"echominecart:echo_activator_rail"
+	]
+}

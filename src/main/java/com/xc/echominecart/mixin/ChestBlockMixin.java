@@ -1,0 +1,70 @@
+package com.xc.echominecart.mixin;
+
+import com.xc.echominecart.NestedChestMod;
+import com.xc.echominecart.world.ConnectedChestFinder;
+import com.xc.echominecart.world.ConnectedChestInventory;
+import com.xc.echominecart.world.ConnectedChestScreenHandlerFactory;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.ChestBlock;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.stat.Stats;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.shape.VoxelShape;
+import net.minecraft.util.shape.VoxelShapes;
+import net.minecraft.world.BlockView;
+import net.minecraft.world.World;
+import net.minecraft.block.ShapeContext;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Mixin(ChestBlock.class)
+public abstract class ChestBlockMixin {
+	@Inject(method = "onStateReplaced", at = @At("HEAD"))
+	private void echominecart$sanitizeChestDrops(BlockState state, World world, BlockPos pos, BlockState newState, boolean moved, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+		if (world.isClient || state.isOf(newState.getBlock())) {
+			return;
+		}
+		BlockEntity blockEntity = world.getBlockEntity(pos);
+		if (blockEntity instanceof Inventory inventory) {
+			// 打破箱子前先清理目录箱掉落物，防止数据库 ID 变成可复制物品。
+			NestedChestMod.sanitizeChestDrops(world, pos, inventory);
+		}
+	}
+
+	@Inject(method = "getOutlineShape", at = @At("RETURN"), cancellable = true)
+	private void echominecart$connectedOutline(BlockState state, BlockView world, BlockPos pos, ShapeContext context, CallbackInfoReturnable<VoxelShape> cir) {
+		VoxelShape shape = cir.getReturnValue();
+		for (Direction direction : Direction.values()) {
+			if (ConnectedChestFinder.isSupportedChest(world.getBlockState(pos.offset(direction)))) {
+				// 轮廓扩展到相邻箱子，玩家选中时能感知它们属于同一组合体。
+				shape = VoxelShapes.union(shape, VoxelShapes.fullCube().offset(direction.getOffsetX(), direction.getOffsetY(), direction.getOffsetZ()));
+			}
+		}
+		cir.setReturnValue(shape.simplify());
+	}
+
+	@Inject(method = "onUse", at = @At("HEAD"), cancellable = true)
+	private void echominecart$openConnectedChest(BlockState state, World world, BlockPos pos, PlayerEntity player, BlockHitResult hit, CallbackInfoReturnable<ActionResult> cir) {
+		if (world.isClient) {
+			return;
+		}
+
+		ConnectedChestInventory inventory = ConnectedChestFinder.find(world, pos);
+		if (inventory.chestCount() <= 1 || !(player instanceof ServerPlayerEntity serverPlayer)) {
+			return;
+		}
+
+		// 多个相邻箱子打开自定义滚动容器；单个箱子仍保留原版行为。
+		serverPlayer.openHandledScreen(new ConnectedChestScreenHandlerFactory(inventory));
+		serverPlayer.incrementStat(Stats.OPEN_CHEST);
+		cir.setReturnValue(ActionResult.CONSUME);
+	}
+}

@@ -1,0 +1,7 @@
+{
+	"parent": "echominecart:block/echo_rail_edge_ceiling",
+	"textures": {
+		"rail": "minecraft:block/powered_rail_on",
+		"particle": "#rail"
+	}
+}

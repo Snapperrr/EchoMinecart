@@ -1,0 +1,9 @@
+{
+	"block.echominecart.echo_rail": "回声铁轨",
+	"block.echominecart.echo_powered_rail": "回声充能铁轨",
+	"block.echominecart.echo_detector_rail": "回声探测铁轨",
+	"block.echominecart.echo_activator_rail": "回声激活铁轨",
+	"item.echominecart.minecart_link_tool": "矿车拆分/合并工具",
+	"item.echominecart.transport_binder": "搬运绑定工具",
+	"item.echominecart.booster_rod": "充能棒"
+}
