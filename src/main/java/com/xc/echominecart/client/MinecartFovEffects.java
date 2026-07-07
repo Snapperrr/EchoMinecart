@@ -11,6 +11,7 @@ import net.minecraft.util.math.Vec3d;
 import java.util.List;
 
 public final class MinecartFovEffects {
+	private static final double ACTIVATION_SPEED = 0.075D;
 	private static final double MIN_SPEED = 0.16D;
 	private static final double FULL_SPEED = 0.68D;
 	private static final double MAX_SPEED_BOOST = 0.105D;
@@ -20,19 +21,25 @@ public final class MinecartFovEffects {
 	private static final double POWERED_DESCENT_BASE = 0.17D;
 	private static final double VERTICAL_DESCENT_BASE = 0.205D;
 	private static final double MAX_TOTAL_BOOST = 0.255D;
-	private static final double SMOOTHING_RATE = 9.0D;
+	private static final double MAX_CONFIGURED_BOOST = 0.75D;
+	private static final double RISE_SMOOTHING_RATE = 3.25D;
+	private static final double FALL_SMOOTHING_RATE = 5.0D;
+	private static final long STATE_CHANGE_RESET_NANOS = 320_000_000L;
 
 	private static int lastCartId = Integer.MIN_VALUE;
+	private static int lastMovementSignature = Integer.MIN_VALUE;
 	private static double lastSpeed;
 	private static double currentBoost;
 	private static long lastUpdateNanos;
+	private static long stateChangeResetUntilNanos;
 
 	private MinecartFovEffects() {
 	}
 
 	public static double apply(Camera camera, float tickDelta, double fov) {
-		double target = targetBoost(camera);
-		currentBoost = ease(currentBoost, target, deltaSeconds());
+		double target = clamp(targetBoost(camera) * NestedChestClientConfig.minecartFovStrength(), 0.0D, MAX_CONFIGURED_BOOST);
+		double rate = target > currentBoost ? RISE_SMOOTHING_RATE : FALL_SMOOTHING_RATE;
+		currentBoost = ease(currentBoost, target, deltaSeconds(), rate);
 		return fov * (1.0D + currentBoost);
 	}
 
@@ -49,10 +56,31 @@ public final class MinecartFovEffects {
 
 		Vec3d velocity = cart.getVelocity();
 		double speed = velocity.length();
+		RailState rail = railState(cart, velocity);
+		long now = System.nanoTime();
+		if (cart.getId() != lastCartId) {
+			lastCartId = cart.getId();
+			lastMovementSignature = rail.movementSignature();
+			lastSpeed = speed;
+			stateChangeResetUntilNanos = 0L;
+		} else {
+			int movementSignature = rail.movementSignature();
+			if (movementSignature != lastMovementSignature) {
+				lastMovementSignature = movementSignature;
+				if (speed >= ACTIVATION_SPEED) {
+					stateChangeResetUntilNanos = now + STATE_CHANGE_RESET_NANOS;
+				}
+			}
+		}
+		if (speed < ACTIVATION_SPEED || now < stateChangeResetUntilNanos) {
+			lastSpeed = speed;
+			return 0.0D;
+		}
+
+		double movementLevel = smoothStep(ACTIVATION_SPEED, MIN_SPEED, speed);
 		double speedLevel = smoothStep(MIN_SPEED, FULL_SPEED, speed);
 		double speedBoost = speedLevel * MAX_SPEED_BOOST;
-		double accelerationBoost = accelerationBoost(cart, speed);
-		RailState rail = railState(cart, velocity);
+		double accelerationBoost = accelerationBoost(speed) * movementLevel;
 
 		double tierBoost;
 		if (rail.verticalDescent()) {
@@ -66,15 +94,10 @@ public final class MinecartFovEffects {
 		} else {
 			tierBoost = speedBoost;
 		}
-		return clamp(tierBoost + accelerationBoost, 0.0D, MAX_TOTAL_BOOST);
+		return clamp(tierBoost * movementLevel + accelerationBoost, 0.0D, MAX_TOTAL_BOOST);
 	}
 
-	private static double accelerationBoost(AbstractMinecartEntity cart, double speed) {
-		if (cart.getId() != lastCartId) {
-			lastCartId = cart.getId();
-			lastSpeed = speed;
-			return 0.0D;
-		}
+	private static double accelerationBoost(double speed) {
 		double acceleration = Math.max(0.0D, speed - lastSpeed);
 		lastSpeed = speed;
 		return clamp(acceleration * 7.0D, 0.0D, MAX_ACCEL_BOOST);
@@ -85,9 +108,10 @@ public final class MinecartFovEffects {
 				.map(contact -> {
 					boolean powered = OmniRailBlock.isAccelerating(contact.state());
 					Descent descent = descent(contact, velocity);
-					return new RailState(powered, descent.descending(), descent.vertical());
+					Direction travel = movementDirection(contact, velocity);
+					return new RailState(powered, descent.descending(), descent.vertical(), contact.face(), travel);
 				})
-				.orElse(new RailState(false, false, false));
+				.orElse(new RailState(false, false, false, null, null));
 	}
 
 	private static Descent descent(RailPhysics.RailContact contact, Vec3d velocity) {
@@ -112,8 +136,24 @@ public final class MinecartFovEffects {
 		return new Descent(ascending != null && velocity.dotProduct(Vec3d.of(ascending.getVector())) < -0.03D, false);
 	}
 
-	private static double ease(double current, double target, double deltaSeconds) {
-		double alpha = 1.0D - Math.exp(-SMOOTHING_RATE * deltaSeconds);
+	private static Direction movementDirection(RailPhysics.RailContact contact, Vec3d velocity) {
+		if (velocity.lengthSquared() < 1.0E-4D) {
+			return null;
+		}
+		Direction best = null;
+		double bestDot = 0.015D;
+		for (Direction connection : OmniRailBlock.connections(contact.state())) {
+			double dot = velocity.dotProduct(Vec3d.of(connection.getVector()));
+			if (dot > bestDot) {
+				bestDot = dot;
+				best = connection;
+			}
+		}
+		return best;
+	}
+
+	private static double ease(double current, double target, double deltaSeconds, double rate) {
+		double alpha = 1.0D - Math.exp(-rate * deltaSeconds);
 		return current + (target - current) * clamp(alpha, 0.0D, 1.0D);
 	}
 
@@ -139,10 +179,17 @@ public final class MinecartFovEffects {
 
 	private static void resetCartTracking() {
 		lastCartId = Integer.MIN_VALUE;
+		lastMovementSignature = Integer.MIN_VALUE;
 		lastSpeed = 0.0D;
+		stateChangeResetUntilNanos = 0L;
 	}
 
-	private record RailState(boolean powered, boolean descending, boolean verticalDescent) {
+	private record RailState(boolean powered, boolean descending, boolean verticalDescent, Direction face, Direction travel) {
+		private int movementSignature() {
+			int faceId = face == null ? 6 : face.ordinal();
+			int travelId = travel == null ? 6 : travel.ordinal();
+			return faceId * 8 + travelId;
+		}
 	}
 
 	private record Descent(boolean descending, boolean vertical) {

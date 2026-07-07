@@ -3,19 +3,33 @@ package com.xc.echominecart.client;
 import com.xc.echominecart.EchoMinecartRegistry;
 import com.xc.echominecart.NestedChestMod;
 import com.xc.echominecart.client.screen.ConnectedChestScreen;
+import com.xc.echominecart.client.screen.EchoMinecartSettingsScreen;
 import com.xc.echominecart.network.CarriageSyncPayload;
 import com.xc.echominecart.network.NestedChestSyncPayload;
 import com.xc.echominecart.network.TripSyncPayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.Screens;
+import net.minecraft.client.gui.screen.GameMenuScreen;
+import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.util.InputUtil;
+import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
 
 public class NestedChestClient implements ClientModInitializer {
+	private static KeyBinding settingsKeyBinding;
+
 	@Override
 	public void onInitializeClient() {
 		NestedChestClientConfig.initialize();
+		registerSettingsControls();
 		BlockRenderLayerMap.INSTANCE.putBlocks(
 				RenderLayer.getCutout(),
 				EchoMinecartRegistry.ECHO_RAIL,
@@ -33,5 +47,27 @@ public class NestedChestClient implements ClientModInitializer {
 				}));
 		ClientPlayNetworking.registerGlobalReceiver(TripSyncPayload.ID, (payload, context) ->
 				context.client().execute(() -> TripClientVisuals.update(payload.entityId(), payload.tripped(), payload.yaw())));
+	}
+
+	private static void registerSettingsControls() {
+		settingsKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key.echominecart.open_settings",
+				InputUtil.Type.KEYSYM,
+				GLFW.GLFW_KEY_O,
+				"category.echominecart"));
+		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			while (settingsKeyBinding.wasPressed()) {
+				client.setScreen(new EchoMinecartSettingsScreen(client.currentScreen));
+			}
+		});
+		ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
+			if (screen instanceof GameMenuScreen) {
+				int buttonWidth = Math.min(160, Math.max(100, scaledWidth - 20));
+				Screens.getButtons(screen).add(ButtonWidget.builder(Text.translatable("button.echominecart.settings"),
+								button -> client.setScreen(new EchoMinecartSettingsScreen(screen)))
+						.dimensions(scaledWidth - buttonWidth - 10, scaledHeight - 30, buttonWidth, 20)
+						.build());
+			}
+		});
 	}
 }

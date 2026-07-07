@@ -1,6 +1,7 @@
 package com.xc.echominecart.mixin;
 
 import com.xc.echominecart.client.CarriageClientVisuals;
+import com.xc.echominecart.client.NestedChestClientConfig;
 import com.xc.echominecart.rail.OmniRailBlock;
 import com.xc.echominecart.rail.RailPhysics;
 import net.minecraft.client.render.Camera;
@@ -147,6 +148,10 @@ public abstract class CameraMixin {
 	}
 
 	private void applySubtleRideRoll(AbstractMinecartEntity minecart, float tickDelta) {
+		double configuredStrength = NestedChestClientConfig.minecartSwayStrength();
+		if (configuredStrength <= 0.0D) {
+			return;
+		}
 		double speed = minecart.getVelocity().length();
 		if (speed < 0.035D) {
 			return;
@@ -154,13 +159,30 @@ public abstract class CameraMixin {
 		float intensity = (float) Math.min(1.0D, speed / 0.55D);
 		float time = minecart.age + tickDelta;
 		float seed = rideSeed(minecart);
-		float sway = (float) (
-				Math.sin(time * (0.115F + intensity * 0.025F) + seed) * 0.58D
-						+ Math.sin(time * 0.071F + seed * 1.73F) * 0.27D
-						+ Math.sin(time * 0.163F + seed * 0.41F) * 0.15D);
-		float wander = (float) Math.sin(time * 0.031F + seed * 2.37F) * 0.22F;
-		float angle = (sway + wander) * intensity * 0.95F;
+		float drift = smoothNoise(time * 0.036F + seed * 0.17F, seed) * 0.72F;
+		float counter = smoothNoise(time * 0.058F + seed * 0.43F, seed + 17.0F) * 0.36F;
+		float railTexture = smoothNoise(time * (0.082F + intensity * 0.018F) + seed * 0.71F, seed + 43.0F) * 0.18F;
+		float asymmetry = (float) Math.sin(time * (0.023F + 0.011F * smoothNoise(time * 0.012F, seed + 61.0F)) + seed * 2.37F) * 0.16F;
+		float angle = (float) ((drift + counter + railTexture + asymmetry) * intensity * 1.05F * configuredStrength);
 		rotation.rotateZ((float) Math.toRadians(angle));
+	}
+
+	private float smoothNoise(float x, float seed) {
+		int cell = (int) Math.floor(x);
+		float t = x - cell;
+		float eased = t * t * (3.0F - 2.0F * t);
+		return lerp(noiseAt(cell, seed), noiseAt(cell + 1, seed), eased);
+	}
+
+	private float noiseAt(int cell, float seed) {
+		int n = cell * 374761393 + Float.floatToIntBits(seed) * 668265263;
+		n = (n ^ (n >>> 13)) * 1274126177;
+		n ^= n >>> 16;
+		return ((n & 0xFFFF) / 32767.5F) - 1.0F;
+	}
+
+	private float lerp(float from, float to, float delta) {
+		return from + (to - from) * delta;
 	}
 
 	private Vec3d safeCameraAnchor(BlockView area, RailPhysics.RailContact contact, AbstractMinecartEntity minecart, float tickDelta) {

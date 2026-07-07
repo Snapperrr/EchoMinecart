@@ -5,5 +5,14 @@
 	"block.echominecart.echo_activator_rail": "Echo Activator Rail",
 	"item.echominecart.minecart_link_tool": "Minecart Split/Merge Tool",
 	"item.echominecart.transport_binder": "Transport Binder",
-	"item.echominecart.booster_rod": "Booster Rod"
+	"item.echominecart.booster_rod": "Booster Rod",
+	"category.echominecart": "EchoMinecart",
+	"key.echominecart.open_settings": "Open EchoMinecart Settings",
+	"button.echominecart.settings": "EchoMinecart Settings",
+	"button.echominecart.reset_defaults": "Reset Defaults",
+	"screen.echominecart.settings": "EchoMinecart Settings",
+	"screen.echominecart.settings.hint": "Ride effect changes apply immediately.",
+	"option.echominecart.minecart_fov_strength": "Minecart FOV Strength",
+	"option.echominecart.minecart_sway_strength": "Minecart Sway Strength",
+	"option.echominecart.percent_value": "%s: %s"
 }

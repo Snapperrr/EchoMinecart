@@ -3,6 +3,7 @@
 	"package": "com.xc.echominecart.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
+		"AbstractSoundInstanceAccessor",
 		"CameraMixin",
 		"ChestBlockEntityRendererMixin",
 		"EntityRendererMixin",
@@ -10,7 +11,9 @@
 		"HandledScreenMixin",
 		"InGameOverlayRendererMixin",
 		"LivingEntityRendererMixin",
+		"MinecartInsideSoundInstanceMixin",
 		"MinecartEntityRendererMixin",
+		"MovingMinecartSoundInstanceMixin",
 		"ScreenAccessor"
 	],
 	"mixins": [

@@ -30,10 +30,20 @@ public final class NestedChestClientConfig {
 	private static final String BACKGROUND_DIR_NAME = "backgrounds";
 	private static final String BACKGROUND_MODE_KEY = "background_mode";
 	private static final String BACKGROUND_IMAGE_KEY = "background_image";
+	private static final String MINECART_FOV_STRENGTH_KEY = "minecart_fov_strength";
+	private static final String MINECART_SWAY_STRENGTH_KEY = "minecart_sway_strength";
 	private static final long IMAGE_RESCAN_INTERVAL_MS = 1000L;
+	public static final double DEFAULT_MINECART_FOV_STRENGTH = 1.45D;
+	public static final double DEFAULT_MINECART_SWAY_STRENGTH = 1.0D;
+	public static final double MIN_MINECART_FOV_STRENGTH = 0.0D;
+	public static final double MAX_MINECART_FOV_STRENGTH = 3.0D;
+	public static final double MIN_MINECART_SWAY_STRENGTH = 0.0D;
+	public static final double MAX_MINECART_SWAY_STRENGTH = 2.5D;
 
 	private static BackgroundMode backgroundMode = BackgroundMode.FIT;
 	private static String configuredBackgroundImage = "";
+	private static double minecartFovStrength = DEFAULT_MINECART_FOV_STRENGTH;
+	private static double minecartSwayStrength = DEFAULT_MINECART_SWAY_STRENGTH;
 	private static LoadedBackground loadedBackground;
 	private static Path loadedPath;
 	private static long loadedModifiedTime;
@@ -68,6 +78,30 @@ public final class NestedChestClientConfig {
 		return loadedBackground;
 	}
 
+	public static double minecartFovStrength() {
+		return minecartFovStrength;
+	}
+
+	public static void setMinecartFovStrength(double strength) {
+		minecartFovStrength = clamp(strength, MIN_MINECART_FOV_STRENGTH, MAX_MINECART_FOV_STRENGTH);
+		save();
+	}
+
+	public static double minecartSwayStrength() {
+		return minecartSwayStrength;
+	}
+
+	public static void setMinecartSwayStrength(double strength) {
+		minecartSwayStrength = clamp(strength, MIN_MINECART_SWAY_STRENGTH, MAX_MINECART_SWAY_STRENGTH);
+		save();
+	}
+
+	public static void resetMinecartRideEffects() {
+		minecartFovStrength = DEFAULT_MINECART_FOV_STRENGTH;
+		minecartSwayStrength = DEFAULT_MINECART_SWAY_STRENGTH;
+		save();
+	}
+
 	public static Path backgroundDirectory() {
 		return configDirectory().resolve(NestedChestMod.MOD_ID).resolve(BACKGROUND_DIR_NAME);
 	}
@@ -100,6 +134,10 @@ public final class NestedChestClientConfig {
 		}
 		backgroundMode = BackgroundMode.fromId(properties.getProperty(BACKGROUND_MODE_KEY, BackgroundMode.FIT.id));
 		configuredBackgroundImage = properties.getProperty(BACKGROUND_IMAGE_KEY, "").trim();
+		minecartFovStrength = readDouble(properties, MINECART_FOV_STRENGTH_KEY, DEFAULT_MINECART_FOV_STRENGTH,
+				MIN_MINECART_FOV_STRENGTH, MAX_MINECART_FOV_STRENGTH);
+		minecartSwayStrength = readDouble(properties, MINECART_SWAY_STRENGTH_KEY, DEFAULT_MINECART_SWAY_STRENGTH,
+				MIN_MINECART_SWAY_STRENGTH, MAX_MINECART_SWAY_STRENGTH);
 		save();
 		lastImageScanMs = 0L;
 	}
@@ -109,11 +147,30 @@ public final class NestedChestClientConfig {
 		Properties properties = new Properties();
 		properties.setProperty(BACKGROUND_MODE_KEY, backgroundMode.id);
 		properties.setProperty(BACKGROUND_IMAGE_KEY, configuredBackgroundImage);
+		properties.setProperty(MINECART_FOV_STRENGTH_KEY, Double.toString(minecartFovStrength));
+		properties.setProperty(MINECART_SWAY_STRENGTH_KEY, Double.toString(minecartSwayStrength));
 		try (OutputStream output = Files.newOutputStream(configFile())) {
 			properties.store(output, "Echo Minecart client settings");
 		} catch (IOException e) {
 			LOGGER.warn("Unable to save nested chest client config", e);
 		}
+	}
+
+	private static double readDouble(Properties properties, String key, double fallback, double min, double max) {
+		String value = properties.getProperty(key);
+		if (value == null || value.isBlank()) {
+			return fallback;
+		}
+		try {
+			return clamp(Double.parseDouble(value.trim()), min, max);
+		} catch (NumberFormatException e) {
+			LOGGER.warn("Invalid value for {} in Echo Minecart client config: {}", key, value);
+			return fallback;
+		}
+	}
+
+	private static double clamp(double value, double min, double max) {
+		return Math.max(min, Math.min(max, value));
 	}
 
 	private static void refreshBackground(boolean force) {
