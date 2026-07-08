@@ -126,7 +126,8 @@ public final class RailPhysics {
 	private static void assistGroundAscending(AbstractMinecartEntity cart, RailContact contact, Direction ascending) {
 		CONTROLLED.remove(cart.getUuid());
 		cart.setNoGravity(false);
-		Vec3d velocity = applySlopePoweredBehavior(contact, cart.getVelocity(), ascending);
+		Vec3d velocity = steerLowerCurveIntoSlope(cart, contact, ascending, cart.getVelocity());
+		velocity = applySlopePoweredBehavior(contact, velocity, ascending);
 		Vec3d uphill = Vec3d.of(ascending.getVector());
 		double climb = new Vec3d(velocity.x, 0.0D, velocity.z).dotProduct(uphill);
 		double minimum = OmniRailBlock.isAccelerating(contact.state()) ? MIN_POWERED_UPHILL_SPEED : MIN_UPHILL_SPEED;
@@ -136,6 +137,39 @@ public final class RailPhysics {
 		velocity = new Vec3d(velocity.x, 0.0D, velocity.z);
 		cart.setVelocity(clamp(velocity, MAX_ATTACHED_SPEED));
 		cart.velocityModified = true;
+	}
+
+	private static Vec3d steerLowerCurveIntoSlope(AbstractMinecartEntity cart, RailContact contact, Direction ascending, Vec3d velocity) {
+		Vec3d horizontal = new Vec3d(velocity.x, 0.0D, velocity.z);
+		double speed = horizontal.length();
+		if (speed < MIN_TRAVEL_SPEED) {
+			return velocity;
+		}
+		Vec3d uphill = Vec3d.of(ascending.getVector());
+		double climb = horizontal.dotProduct(uphill);
+		if (climb <= -MIN_TRAVEL_SPEED || climb >= speed * 0.55D) {
+			return velocity;
+		}
+		double along = cart.getPos().subtract(surfacePoint(contact.pos(), Direction.UP)).dotProduct(uphill);
+		if (along > 0.12D || !hasLowerCurveEntry(cart.getWorld(), contact.pos(), ascending)) {
+			return velocity;
+		}
+		return uphill.multiply(Math.max(speed, MIN_UPHILL_SPEED)).add(0.0D, velocity.y, 0.0D);
+	}
+
+	private static boolean hasLowerCurveEntry(World world, BlockPos slopePos, Direction ascending) {
+		BlockPos lowerPos = slopePos.offset(ascending.getOpposite());
+		BlockState lowerState = world.getBlockState(lowerPos);
+		if (!OmniRailBlock.isOmniRail(lowerState) || OmniRailBlock.face(lowerState) != Direction.UP) {
+			return false;
+		}
+		BlockState connected = OmniRailBlock.withConnections(world, lowerPos, lowerState);
+		List<Direction> lowerConnections = OmniRailBlock.connections(connected).stream()
+				.filter(direction -> !direction.getAxis().isVertical())
+				.toList();
+		return lowerConnections.size() == 2
+				&& lowerConnections.contains(ascending)
+				&& lowerConnections.stream().anyMatch(direction -> direction.getAxis() != ascending.getAxis());
 	}
 
 	/** 拐角接近段：无碰撞的平地积分，保住速度直到 tryCornerTransition 触发。 */
