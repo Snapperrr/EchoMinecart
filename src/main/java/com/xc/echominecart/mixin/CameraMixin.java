@@ -103,10 +103,21 @@ public abstract class CameraMixin {
 		if (face == Direction.UP) {
 			return new Quaternionf();
 		}
-		Quaternionf attached = new Quaternionf(CarriageClientVisuals.attachedRotation(minecart, face));
-		if (face == Direction.DOWN || isVerticalWallRide(face, minecart.getVelocity())) {
-			attached.mul(RotationAxis.POSITIVE_Y.rotationDegrees(CarriageClientVisuals.planeYawDegrees(minecart, face)));
+		float yaw = CarriageClientVisuals.planeYawDegrees(minecart, face);
+		Quaternionf target = attachedRotationWithYaw(minecart, face, yaw);
+		if (echominecart$hasSmoothedAttachedRotation && echominecart$smoothedCartId == minecart.getId()) {
+			Quaternionf flipped = attachedRotationWithYaw(minecart, face, yaw + 180.0F);
+			if (Math.abs(echominecart$smoothedAttachedRotation.dot(flipped))
+					> Math.abs(echominecart$smoothedAttachedRotation.dot(target))) {
+				return flipped;
+			}
 		}
+		return target;
+	}
+
+	private Quaternionf attachedRotationWithYaw(AbstractMinecartEntity minecart, Direction face, float yaw) {
+		Quaternionf attached = new Quaternionf(CarriageClientVisuals.attachedRotation(minecart, face));
+		attached.mul(RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
 		return attached;
 	}
 
@@ -128,7 +139,7 @@ public abstract class CameraMixin {
 		deltaSeconds = Math.max(1.0D / 240.0D, Math.min(0.08D, deltaSeconds));
 		float alpha = (float) (1.0D - Math.exp(-ATTACHED_ROTATION_SMOOTHING_RATE * deltaSeconds));
 		Quaternionf shortestTarget = closestHemisphere(target);
-		echominecart$smoothedAttachedRotation.nlerp(shortestTarget, alpha).normalize();
+		echominecart$smoothedAttachedRotation.slerp(shortestTarget, alpha).normalize();
 		return new Quaternionf(echominecart$smoothedAttachedRotation);
 	}
 

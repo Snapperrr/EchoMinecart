@@ -366,6 +366,11 @@ public class OmniRailBlock extends AbstractRailBlock {
 				return ascendingShape(direction);
 			}
 		}
+		for (Direction direction : Direction.Type.HORIZONTAL) {
+			if (linksToWallTransition(world, pos, direction)) {
+				return ascendingShape(direction);
+			}
+		}
 		return null;
 	}
 
@@ -373,6 +378,10 @@ public class OmniRailBlock extends AbstractRailBlock {
 		RailShape raised = ascendingTowardRaisedCeilingRail(world, pos);
 		if (raised != null) {
 			return raised;
+		}
+		RailShape wallEndpoint = ascendingTowardSingleWallRail(world, pos);
+		if (wallEndpoint != null) {
+			return wallEndpoint;
 		}
 		RailShape bridgedWallStep = ascendingBetweenWallRails(world, pos);
 		return bridgedWallStep != null ? bridgedWallStep : ascendingFromLowerCeilingRail(world, pos);
@@ -391,6 +400,15 @@ public class OmniRailBlock extends AbstractRailBlock {
 		for (Direction direction : Direction.Type.HORIZONTAL) {
 			if (isLowerCeilingRail(world, pos, direction)) {
 				return ascendingShape(direction.getOpposite());
+			}
+		}
+		return null;
+	}
+
+	private static RailShape ascendingTowardSingleWallRail(WorldView world, BlockPos pos) {
+		for (Direction direction : Direction.Type.HORIZONTAL) {
+			if (hasUpperWallStep(world, pos, direction)) {
+				return ascendingShape(direction);
 			}
 		}
 		return null;
@@ -429,6 +447,11 @@ public class OmniRailBlock extends AbstractRailBlock {
 		return isOmniRail(target) && face(target) == Direction.UP;
 	}
 
+	private static boolean linksToWallTransition(WorldView world, BlockPos pos, Direction direction) {
+		RailLink link = findLink(world, pos, Direction.UP, direction);
+		return isFloorToWallTransition(world, pos, link);
+	}
+
 	private static boolean isRaisedCeilingRail(WorldView world, BlockPos pos, Direction direction) {
 		BlockState target = world.getBlockState(pos.offset(direction).up());
 		return isOmniRail(target) && face(target) == Direction.DOWN;
@@ -464,10 +487,51 @@ public class OmniRailBlock extends AbstractRailBlock {
 			return RailShape.ASCENDING_NORTH;
 		}
 		RailLink floor = findLink(world, pos, face, Direction.DOWN);
-		if (floor != null && floor.kind() != LinkKind.STRAIGHT && floor.face() == Direction.UP) {
+		if (floor != null && floor.kind() != LinkKind.STRAIGHT && floor.face() == Direction.UP
+				&& !floorRailClaimsWallTransition(world, floor.pos(), pos, face)) {
 			return RailShape.ASCENDING_SOUTH;
 		}
 		return null;
+	}
+
+	private static boolean floorRailClaimsWallTransition(WorldView world, BlockPos floorPos, BlockPos wallPos, Direction wallFace) {
+		if (!hasRailFace(world, floorPos, Direction.UP)) {
+			return false;
+		}
+		for (Direction direction : Direction.Type.HORIZONTAL) {
+			RailLink link = findLink(world, floorPos, Direction.UP, direction);
+			if (isFloorToWallTransition(world, floorPos, link)
+					&& link.pos().equals(wallPos) && link.face() == wallFace) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean isFloorToWallTransition(WorldView world, BlockPos floorPos, RailLink link) {
+		if (link == null || link.kind() == LinkKind.STRAIGHT || link.face().getAxis().isVertical()) {
+			return false;
+		}
+		RailLink reciprocal = findLink(world, link.pos(), link.face(), Direction.DOWN);
+		if (reciprocal == null || reciprocal.kind() == LinkKind.STRAIGHT
+				|| !reciprocal.pos().equals(floorPos) || reciprocal.face() != Direction.UP) {
+			return false;
+		}
+		return !touchesCeilingSlopeTransition(world, link.pos(), link.face());
+	}
+
+	private static boolean touchesCeilingSlopeTransition(WorldView world, BlockPos wallPos, Direction wallFace) {
+		return touchesCeilingSlopeTransition(world, wallPos, wallFace, Direction.UP)
+				|| touchesCeilingSlopeTransition(world, wallPos, wallFace, Direction.DOWN);
+	}
+
+	private static boolean touchesCeilingSlopeTransition(WorldView world, BlockPos wallPos, Direction wallFace, Direction tangent) {
+		for (RailLink candidate : linkCandidates(wallPos, wallFace, tangent)) {
+			if (candidate.kind() != LinkKind.STRAIGHT && candidate.face() == Direction.DOWN && isCeilingSlope(world, candidate.pos())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static boolean isCeilingSlope(WorldView world, BlockPos pos) {

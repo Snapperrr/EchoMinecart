@@ -293,6 +293,9 @@ public final class RailPhysics {
 		}
 		Direction travel = deadEndTravel(cart, contact, velocity);
 		if (travel == null) {
+			travel = stalledDeadEndTravel(cart, contact, velocity);
+		}
+		if (travel == null) {
 			return false;
 		}
 		Vec3d normal = Vec3d.of(contact.face().getVector());
@@ -323,6 +326,28 @@ public final class RailPhysics {
 		return null;
 	}
 
+	private static Direction stalledDeadEndTravel(AbstractMinecartEntity cart, RailContact contact, Vec3d velocity) {
+		if (contact.face() == Direction.UP) {
+			return null;
+		}
+		Vec3d surface = surfacePoint(contact, cart.getPos());
+		Direction best = null;
+		double bestAlong = contact.face() == Direction.DOWN ? 0.66D : 0.84D;
+		for (Direction travel : OmniRailBlock.planeTangents(contact.face())) {
+			if (OmniRailBlock.findLink(cart.getWorld(), contact.pos(), contact.face(), travel) != null) {
+				continue;
+			}
+			Vec3d direction = Vec3d.of(travel.getVector());
+			double predictedAlong = cart.getPos().subtract(surface).dotProduct(direction)
+					+ Math.max(0.0D, velocity.dotProduct(direction));
+			if (predictedAlong > bestAlong) {
+				bestAlong = predictedAlong;
+				best = travel;
+			}
+		}
+		return best;
+	}
+
 	private static boolean isPastUnlinkedEdge(AbstractMinecartEntity cart, RailContact contact, Direction travel, Vec3d velocity) {
 		if (!OmniRailBlock.planeTangents(contact.face()).contains(travel)) {
 			return false;
@@ -330,23 +355,12 @@ public final class RailPhysics {
 		if (OmniRailBlock.findLink(cart.getWorld(), contact.pos(), contact.face(), travel) != null) {
 			return false;
 		}
-		if (hasAnyRailCandidate(cart, contact, travel)) {
-			return false;
-		}
 		Vec3d direction = Vec3d.of(travel.getVector());
 		Vec3d surface = surfacePoint(contact, cart.getPos());
 		double along = cart.getPos().subtract(surface).dotProduct(direction);
 		double predictedAlong = along + Math.max(0.0D, velocity.dotProduct(direction));
-		return predictedAlong > 0.86D;
-	}
-
-	private static boolean hasAnyRailCandidate(AbstractMinecartEntity cart, RailContact contact, Direction travel) {
-		for (RailLink candidate : OmniRailBlock.linkCandidates(contact.pos(), contact.face(), travel)) {
-			if (OmniRailBlock.isOmniRail(cart.getWorld().getBlockState(candidate.pos()))) {
-				return true;
-			}
-		}
-		return false;
+		double edge = contact.face() == Direction.DOWN ? 0.72D : 0.86D;
+		return predictedAlong > edge;
 	}
 
 	private static Direction poweredStartDirection(AbstractMinecartEntity cart, RailContact contact, Vec3d tangent) {
