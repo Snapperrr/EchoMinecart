@@ -27,8 +27,10 @@ import net.minecraft.world.WorldView;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 全向铁轨：可贴附在地面、四面墙和天花板上，在同一贴附面内允许 T 字/十字/多分叉全连接，
@@ -144,7 +146,7 @@ public class OmniRailBlock extends AbstractRailBlock {
 
 	@Override
 	protected BlockState getStateForNeighborUpdate(BlockState state, Direction direction, BlockState neighborState, WorldAccess world, BlockPos pos, BlockPos neighborPos) {
-		BlockState updated = withConnections(world, pos, withWorldPower(world, pos, state));
+		BlockState updated = refreshedState(world, pos, state);
 		return canPlaceAt(updated, world, pos) ? updated : Blocks.AIR.getDefaultState();
 	}
 
@@ -154,9 +156,10 @@ public class OmniRailBlock extends AbstractRailBlock {
 			world.breakBlock(pos, true);
 			return;
 		}
-		BlockState updated = withConnections(world, pos, withWorldPower(world, pos, state));
+		BlockState updated = refreshedState(world, pos, state);
 		if (updated != state) {
 			world.setBlockState(pos, updated, Block.NOTIFY_ALL);
+			refreshPoweredNetwork(world, pos, updated);
 		}
 	}
 
@@ -165,6 +168,11 @@ public class OmniRailBlock extends AbstractRailBlock {
 		// 不调用 super：AbstractRailBlock 的 onBlockAdded 会跑原版 RailPlacementHelper，
 		// 用原版邻接逻辑改写 SHAPE，破坏墙面/天花板轨的连接状态。
 		refreshDiagonalPartners(world, pos, state);
+		BlockState updated = refreshedState(world, pos, state);
+		if (updated != state) {
+			world.setBlockState(pos, updated, Block.NOTIFY_ALL);
+		}
+		refreshPoweredNetwork(world, pos, updated);
 	}
 
 	@Override
@@ -250,16 +258,21 @@ public class OmniRailBlock extends AbstractRailBlock {
 		return directions;
 	}
 
-	/** 切线方向 d 上的五个连接候选（位置 + 对方需要的贴附面）。 */
+	/** 切线方向 d 上的连接候选（位置 + 对方需要的贴附面）。 */
 	public static List<RailLink> linkCandidates(BlockPos pos, Direction face, Direction tangent) {
-		return List.of(
-				new RailLink(pos.offset(tangent), face, LinkKind.STRAIGHT),
-				new RailLink(pos.offset(face), tangent.getOpposite(), LinkKind.INNER_CORNER),
-				new RailLink(pos.offset(tangent), tangent.getOpposite(), LinkKind.INNER_CORNER),
-				// 对角内角 (P+n+d, -d)：覆盖"墙顶与天花板齐平相接"这类隔一个对角空格的几何，
-				// 从对方视角代回公式同样成立（自对称）。
-				new RailLink(pos.offset(face).offset(tangent), tangent.getOpposite(), LinkKind.INNER_CORNER),
-				new RailLink(pos.offset(tangent).offset(face.getOpposite()), tangent, LinkKind.OUTER_CORNER));
+		List<RailLink> candidates = new ArrayList<>(7);
+		candidates.add(new RailLink(pos.offset(tangent), face, LinkKind.STRAIGHT));
+		if (face == Direction.DOWN && tangent.getAxis().isHorizontal()) {
+			candidates.add(new RailLink(pos.offset(tangent).up(), face, LinkKind.STRAIGHT));
+			candidates.add(new RailLink(pos.offset(tangent).down(), face, LinkKind.STRAIGHT));
+		}
+		candidates.add(new RailLink(pos.offset(face), tangent.getOpposite(), LinkKind.INNER_CORNER));
+		candidates.add(new RailLink(pos.offset(tangent), tangent.getOpposite(), LinkKind.INNER_CORNER));
+		// 对角内角 (P+n+d, -d)：覆盖“墙顶与天花板齐平相接”这类隔一个对角空格的几何，
+		// 从对方视角代回公式同样成立（自对称）。
+		candidates.add(new RailLink(pos.offset(face).offset(tangent), tangent.getOpposite(), LinkKind.INNER_CORNER));
+		candidates.add(new RailLink(pos.offset(tangent).offset(face.getOpposite()), tangent, LinkKind.OUTER_CORNER));
+		return candidates;
 	}
 
 	/** 查找切线方向 d 上实际连通的铁轨；找不到返回 null。 */
@@ -299,6 +312,18 @@ public class OmniRailBlock extends AbstractRailBlock {
 				}
 			}
 		}
+		Direction ceilingWallStep = face == Direction.DOWN ? ceilingWallStepDirection(world, pos) : null;
+		if (ceilingWallStep != null) {
+			if (!connected.get(ceilingWallStep)) {
+				connected.put(ceilingWallStep, true);
+				count++;
+			}
+			Direction lowerDirection = ceilingWallStep.getOpposite();
+			if (!connected.get(lowerDirection)) {
+				connected.put(lowerDirection, true);
+				count++;
+			}
+		}
 		if (count == 0) {
 			// 孤立铁轨给一条默认直线，保证外观和物理始终有切线可用。
 			List<Direction> tangents = planeTangents(face);
@@ -320,6 +345,12 @@ public class OmniRailBlock extends AbstractRailBlock {
 				shape = ascending;
 			}
 		}
+		if (face == Direction.DOWN) {
+			RailShape ascending = ceilingSlopeShape(world, pos);
+			if (ascending != null) {
+				shape = ascending;
+			}
+		}
 		if (face != Direction.UP) {
 			RailShape edgeShape = wallEdgeShape(world, pos, face);
 			if (edgeShape != null) {
@@ -332,15 +363,60 @@ public class OmniRailBlock extends AbstractRailBlock {
 	private static RailShape ascendingTowardRaisedRail(WorldView world, BlockPos pos) {
 		for (Direction direction : Direction.Type.HORIZONTAL) {
 			if (isRaisedFloorRail(world, pos, direction)) {
-				return switch (direction) {
-					case NORTH -> RailShape.ASCENDING_NORTH;
-					case SOUTH -> RailShape.ASCENDING_SOUTH;
-					case EAST -> RailShape.ASCENDING_EAST;
-					default -> RailShape.ASCENDING_WEST;
-				};
+				return ascendingShape(direction);
 			}
 		}
 		return null;
+	}
+
+	private static RailShape ceilingSlopeShape(WorldView world, BlockPos pos) {
+		RailShape raised = ascendingTowardRaisedCeilingRail(world, pos);
+		if (raised != null) {
+			return raised;
+		}
+		RailShape bridgedWallStep = ascendingBetweenWallRails(world, pos);
+		return bridgedWallStep != null ? bridgedWallStep : ascendingFromLowerCeilingRail(world, pos);
+	}
+
+	private static RailShape ascendingTowardRaisedCeilingRail(WorldView world, BlockPos pos) {
+		for (Direction direction : Direction.Type.HORIZONTAL) {
+			if (isRaisedCeilingRail(world, pos, direction)) {
+				return ascendingShape(direction);
+			}
+		}
+		return null;
+	}
+
+	private static RailShape ascendingFromLowerCeilingRail(WorldView world, BlockPos pos) {
+		for (Direction direction : Direction.Type.HORIZONTAL) {
+			if (isLowerCeilingRail(world, pos, direction)) {
+				return ascendingShape(direction.getOpposite());
+			}
+		}
+		return null;
+	}
+
+	private static RailShape ascendingBetweenWallRails(WorldView world, BlockPos pos) {
+		Direction direction = ceilingWallStepDirection(world, pos);
+		return direction == null ? null : ascendingShape(direction);
+	}
+
+	private static Direction ceilingWallStepDirection(WorldView world, BlockPos pos) {
+		for (Direction direction : Direction.Type.HORIZONTAL) {
+			if (hasLowerWallStep(world, pos, direction) && hasUpperWallStep(world, pos, direction)) {
+				return direction;
+			}
+		}
+		return null;
+	}
+
+	private static RailShape ascendingShape(Direction direction) {
+		return switch (direction) {
+			case NORTH -> RailShape.ASCENDING_NORTH;
+			case SOUTH -> RailShape.ASCENDING_SOUTH;
+			case EAST -> RailShape.ASCENDING_EAST;
+			default -> RailShape.ASCENDING_WEST;
+		};
 	}
 
 	private static boolean isRaisedFloorRail(WorldView world, BlockPos pos, Direction direction) {
@@ -353,12 +429,38 @@ public class OmniRailBlock extends AbstractRailBlock {
 		return isOmniRail(target) && face(target) == Direction.UP;
 	}
 
+	private static boolean isRaisedCeilingRail(WorldView world, BlockPos pos, Direction direction) {
+		BlockState target = world.getBlockState(pos.offset(direction).up());
+		return isOmniRail(target) && face(target) == Direction.DOWN;
+	}
+
+	private static boolean isLowerCeilingRail(WorldView world, BlockPos pos, Direction direction) {
+		BlockState target = world.getBlockState(pos.offset(direction).down());
+		return isOmniRail(target) && face(target) == Direction.DOWN;
+	}
+
+	private static boolean hasLowerWallStep(WorldView world, BlockPos pos, Direction direction) {
+		Direction lowerFace = direction.getOpposite();
+		return hasRailFace(world, pos.down(), lowerFace)
+				|| hasRailFace(world, pos.offset(direction).down(), lowerFace);
+	}
+
+	private static boolean hasUpperWallStep(WorldView world, BlockPos pos, Direction direction) {
+		return hasRailFace(world, pos.offset(direction).up(), direction);
+	}
+
+	private static boolean hasRailFace(WorldView world, BlockPos pos, Direction expectedFace) {
+		BlockState target = world.getBlockState(pos);
+		return isOmniRail(target) && face(target) == expectedFace;
+	}
+
 	private static RailShape wallEdgeShape(WorldView world, BlockPos pos, Direction face) {
 		if (face.getAxis().isVertical()) {
 			return null;
 		}
 		RailLink ceiling = findLink(world, pos, face, Direction.UP);
-		if (ceiling != null && ceiling.kind() != LinkKind.STRAIGHT && ceiling.face() == Direction.DOWN) {
+		if (ceiling != null && ceiling.kind() != LinkKind.STRAIGHT && ceiling.face() == Direction.DOWN
+				&& !isCeilingSlope(world, ceiling.pos())) {
 			return RailShape.ASCENDING_NORTH;
 		}
 		RailLink floor = findLink(world, pos, face, Direction.DOWN);
@@ -366,6 +468,19 @@ public class OmniRailBlock extends AbstractRailBlock {
 			return RailShape.ASCENDING_SOUTH;
 		}
 		return null;
+	}
+
+	private static boolean isCeilingSlope(WorldView world, BlockPos pos) {
+		BlockState state = world.getBlockState(pos);
+		return isOmniRail(state) && face(state) == Direction.DOWN
+				&& (isAscendingShape(state.get(SHAPE)) || ceilingSlopeShape(world, pos) != null);
+	}
+
+	private static boolean isAscendingShape(RailShape shape) {
+		return shape == RailShape.ASCENDING_NORTH
+				|| shape == RailShape.ASCENDING_SOUTH
+				|| shape == RailShape.ASCENDING_EAST
+				|| shape == RailShape.ASCENDING_WEST;
 	}
 
 	public static BlockState orientIsolatedWallRail(BlockState state, Direction playerFacing) {
@@ -415,6 +530,14 @@ public class OmniRailBlock extends AbstractRailBlock {
 				refreshRailAt(world, pos.offset(direction.getOpposite()).up());
 			}
 		}
+		if (face == Direction.DOWN) {
+			for (Direction direction : Direction.Type.HORIZONTAL) {
+				refreshRailAt(world, pos.offset(direction).down());
+				refreshRailAt(world, pos.offset(direction).up());
+				refreshRailAt(world, pos.offset(direction.getOpposite()).down());
+				refreshRailAt(world, pos.offset(direction.getOpposite()).up());
+			}
+		}
 	}
 
 	private static void refreshRailAt(World world, BlockPos pos) {
@@ -422,7 +545,7 @@ public class OmniRailBlock extends AbstractRailBlock {
 		if (!isOmniRail(state)) {
 			return;
 		}
-		BlockState refreshed = withConnections(world, pos, state);
+		BlockState refreshed = refreshedState(world, pos, state);
 		if (refreshed != state) {
 			world.setBlockState(pos, refreshed, Block.NOTIFY_ALL);
 		}
@@ -445,6 +568,14 @@ public class OmniRailBlock extends AbstractRailBlock {
 			return RailShape.SOUTH_WEST;
 		}
 		return RailShape.NORTH_SOUTH;
+	}
+
+	private static BlockState refreshedState(WorldAccess world, BlockPos pos, BlockState state) {
+		BlockState connected = withConnections(world, pos, state);
+		if (connected.getBlock() instanceof OmniRailBlock rail) {
+			return withConnections(world, pos, rail.withWorldPower(world, pos, connected));
+		}
+		return connected;
 	}
 
 	private BlockState withWorldPower(WorldAccess world, BlockPos pos, BlockState state) {
@@ -475,6 +606,36 @@ public class OmniRailBlock extends AbstractRailBlock {
 			}
 		}
 		return false;
+	}
+
+	private void refreshPoweredNetwork(World world, BlockPos pos, BlockState state) {
+		if (world.isClient() || !redstoneControlled) {
+			return;
+		}
+		refreshPoweredNetwork(world, pos, state, 0, new HashSet<>());
+	}
+
+	private static void refreshPoweredNetwork(World world, BlockPos pos, BlockState state, int depth, Set<BlockPos> visited) {
+		if (depth >= 8 || !visited.add(pos) || !isOmniRail(state)) {
+			return;
+		}
+		for (Direction tangent : connections(state)) {
+			for (RailLink link : linkCandidates(pos, state.get(FACE), tangent)) {
+				refreshPoweredRailAt(world, link.pos(), depth + 1, visited);
+			}
+		}
+	}
+
+	private static void refreshPoweredRailAt(World world, BlockPos pos, int depth, Set<BlockPos> visited) {
+		BlockState state = world.getBlockState(pos);
+		if (!(state.getBlock() instanceof OmniRailBlock rail) || !rail.redstoneControlled) {
+			return;
+		}
+		BlockState refreshed = refreshedState(world, pos, state);
+		if (refreshed != state) {
+			world.setBlockState(pos, refreshed, Block.NOTIFY_ALL);
+		}
+		refreshPoweredNetwork(world, pos, refreshed, depth, visited);
 	}
 
 	private boolean receivesRailPowerFrom(WorldAccess world, BlockPos pos, int depth) {

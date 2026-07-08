@@ -293,7 +293,8 @@
                       {
                           "when":  {
                                        "face":  "down",
-                                       "north":  "true"
+                                       "north":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
                                    },
                           "apply":  {
                                         "model":  "echominecart:block/echo_activator_rail",
@@ -304,7 +305,8 @@
                           "when":  {
                                        "face":  "down",
                                        "north":  "false",
-                                       "south":  "true"
+                                       "south":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
                                    },
                           "apply":  {
                                         "model":  "echominecart:block/echo_activator_rail",
@@ -314,7 +316,8 @@
                       {
                           "when":  {
                                        "face":  "down",
-                                       "east":  "true"
+                                       "east":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
                                    },
                           "apply":  {
                                         "model":  "echominecart:block/echo_activator_rail",
@@ -326,10 +329,103 @@
                           "when":  {
                                        "face":  "down",
                                        "east":  "false",
-                                       "west":  "true"
+                                       "west":  "true",
+                                       "shape":  "north_south|east_west|north_east|north_west|south_east|south_west"
                                    },
                           "apply":  {
                                         "model":  "echominecart:block/echo_activator_rail",
+                                        "x":  180,
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "down",
+                                       "shape":  "ascending_north",
+                                       "powered":  "false"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/activator_rail_raised_ne",
+                                        "x":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "down",
+                                       "shape":  "ascending_south",
+                                       "powered":  "false"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/activator_rail_raised_sw",
+                                        "x":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "down",
+                                       "shape":  "ascending_east",
+                                       "powered":  "false"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/activator_rail_raised_ne",
+                                        "x":  180,
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "down",
+                                       "shape":  "ascending_west",
+                                       "powered":  "false"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/activator_rail_raised_sw",
+                                        "x":  180,
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "down",
+                                       "shape":  "ascending_north",
+                                       "powered":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/activator_rail_on_raised_ne",
+                                        "x":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "down",
+                                       "shape":  "ascending_south",
+                                       "powered":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/activator_rail_on_raised_sw",
+                                        "x":  180
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "down",
+                                       "shape":  "ascending_east",
+                                       "powered":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/activator_rail_on_raised_ne",
+                                        "x":  180,
+                                        "y":  90
+                                    }
+                      },
+                      {
+                          "when":  {
+                                       "face":  "down",
+                                       "shape":  "ascending_west",
+                                       "powered":  "true"
+                                   },
+                          "apply":  {
+                                        "model":  "minecraft:block/activator_rail_on_raised_sw",
                                         "x":  180,
                                         "y":  90
                                     }

@@ -37,6 +37,7 @@ public final class RailPhysics {
 	private static final double WALL_TO_FLOOR_EDGE = 0.36D;
 	private static final long TRANSITION_LOCK_TICKS = 10L;
 	private static final double CEILING_RIDE_Y = 0.38D;
+	private static final double CEILING_SLOPE_BODY_OFFSET = 0.52D;
 	private static final double WALL_HORIZONTAL_RIDE_Y = 0.38D;
 	private static final double WALL_LOW = 0.30D;
 	private static final double WALL_HIGH = 0.70D;
@@ -132,6 +133,7 @@ public final class RailPhysics {
 		if (climb > 0.0D && climb < minimum) {
 			velocity = velocity.add(uphill.multiply(minimum - climb));
 		}
+		velocity = new Vec3d(velocity.x, 0.0D, velocity.z);
 		cart.setVelocity(clamp(velocity, MAX_ATTACHED_SPEED));
 		cart.velocityModified = true;
 	}
@@ -160,7 +162,7 @@ public final class RailPhysics {
 		return new RailContact(contact.pos(), healed, contact.face());
 	}
 
-	private static Direction ascendingDirection(BlockState state) {
+	public static Direction ascendingDirection(BlockState state) {
 		if (!OmniRailBlock.isOmniRail(state)) {
 			return null;
 		}
@@ -208,7 +210,8 @@ public final class RailPhysics {
 		cart.setNoGravity(true);
 
 		Direction face = contact.face();
-		Vec3d velocity = projectOntoPlane(cart.getVelocity(), face);
+		boolean ceilingSlope = isCeilingSlope(contact);
+		Vec3d velocity = ceilingSlope ? projectOntoPlane(cart.getVelocity(), Direction.DOWN) : projectOntoPlane(cart.getVelocity(), face);
 		velocity = steerInPlaneCorner(cart, contact, velocity);
 		if (velocity.lengthSquared() < 0.0025D) {
 			Direction rescue = cornerRescueDirection(cart, contact);
@@ -217,8 +220,8 @@ public final class RailPhysics {
 			}
 		}
 
-		Vec3d tangent = travelTangent(contact.state(), velocity);
-		velocity = tangent.multiply(velocity.dotProduct(tangent));
+		Vec3d tangent = travelTangent(contact, velocity);
+		velocity = projectOntoRailTangent(contact, velocity, tangent);
 
 		if (OmniRailBlock.isAccelerating(contact.state())) {
 			if (velocity.lengthSquared() > 1.0E-4D) {
@@ -235,7 +238,8 @@ public final class RailPhysics {
 		}
 
 		velocity = applyPassengerInput(cart, velocity, face);
-		velocity = tangent.multiply(velocity.dotProduct(tangent));
+		tangent = travelTangent(contact, velocity);
+		velocity = projectOntoRailTangent(contact, velocity, tangent);
 		if (detachAtAttachedEnd(cart, contact, velocity)) {
 			return;
 		}
@@ -253,9 +257,19 @@ public final class RailPhysics {
 		Vec3d surface = surfacePoint(contact.pos(), face);
 		Vec3d next = cart.getPos().add(velocity);
 		Direction.Axis travelAxis = dominantAxis(tangent);
-		double x = travelAxis == Direction.Axis.X ? next.x : surface.x;
-		double y = travelAxis == Direction.Axis.Y ? next.y : attachedSurfaceY(contact, travelAxis, surface);
-		double z = travelAxis == Direction.Axis.Z ? next.z : surface.z;
+		double x;
+		double y;
+		double z;
+		if (ceilingSlope) {
+			surface = surfacePoint(contact.pos(), contact.state(), face, next);
+			x = surface.x;
+			y = surface.y;
+			z = surface.z;
+		} else {
+			x = travelAxis == Direction.Axis.X ? next.x : surface.x;
+			y = travelAxis == Direction.Axis.Y ? next.y : attachedSurfaceY(contact, travelAxis, surface);
+			z = travelAxis == Direction.Axis.Z ? next.z : surface.z;
+		}
 		cart.setPosition(x, y, z);
 		cart.setVelocity(velocity);
 		cart.velocityModified = true;
@@ -298,7 +312,10 @@ public final class RailPhysics {
 		if (velocity.lengthSquared() < 0.0025D) {
 			return null;
 		}
-		Direction travel = Direction.getFacing(velocity.x, velocity.y, velocity.z);
+		Direction travel = edgeTravelDirection(contact, velocity);
+		if (travel == null) {
+			return null;
+		}
 		if (velocity.dotProduct(Vec3d.of(travel.getVector())) > 0.035D
 				&& isPastUnlinkedEdge(cart, contact, travel, velocity)) {
 			return travel;
@@ -317,7 +334,7 @@ public final class RailPhysics {
 			return false;
 		}
 		Vec3d direction = Vec3d.of(travel.getVector());
-		Vec3d surface = surfacePoint(contact.pos(), contact.face());
+		Vec3d surface = surfacePoint(contact, cart.getPos());
 		double along = cart.getPos().subtract(surface).dotProduct(direction);
 		double predictedAlong = along + Math.max(0.0D, velocity.dotProduct(direction));
 		return predictedAlong > 0.86D;
@@ -356,19 +373,29 @@ public final class RailPhysics {
 		if (velocity.lengthSquared() < 1.0E-5D || contact.face() == Direction.UP) {
 			return velocity;
 		}
-		Direction travel = Direction.getFacing(velocity.x, velocity.y, velocity.z);
+		Direction travel = edgeTravelDirection(contact, velocity);
+		if (travel == null) {
+			return velocity;
+		}
 		if (!OmniRailBlock.planeTangents(contact.face()).contains(travel)) {
 			return velocity;
 		}
 		if (OmniRailBlock.findLink(cart.getWorld(), contact.pos(), contact.face(), travel) != null) {
 			return velocity;
 		}
-		Vec3d surface = surfacePoint(contact.pos(), contact.face());
+		Vec3d surface = surfacePoint(contact, cart.getPos());
 		double along = cart.getPos().subtract(surface).dotProduct(Vec3d.of(travel.getVector()));
 		if (along > 0.90D) {
 			return Vec3d.ZERO;
 		}
 		return velocity;
+	}
+
+	private static Direction edgeTravelDirection(RailContact contact, Vec3d velocity) {
+		if (isCeilingSlope(contact)) {
+			return travelDirection(contact.state(), velocity);
+		}
+		return Direction.getFacing(velocity.x, velocity.y, velocity.z);
 	}
 
 	private static Vec3d steerInPlaneCorner(AbstractMinecartEntity cart, RailContact contact, Vec3d velocity) {
@@ -381,7 +408,7 @@ public final class RailPhysics {
 		if (connections.contains(travel)) {
 			return velocity;
 		}
-		Vec3d surface = surfacePoint(contact.pos(), contact.face());
+		Vec3d surface = surfacePoint(contact, cart.getPos());
 		double along = cart.getPos().subtract(surface).dotProduct(Vec3d.of(travel.getVector()));
 		if (along < 0.0D) {
 			return velocity;
@@ -413,7 +440,7 @@ public final class RailPhysics {
 	}
 
 	private static Direction cornerRescueDirection(AbstractMinecartEntity cart, RailContact contact) {
-		Vec3d surface = surfacePoint(contact.pos(), contact.face());
+		Vec3d surface = surfacePoint(contact, cart.getPos());
 		Direction best = null;
 		double bestAlong = 0.24D;
 		for (Direction connection : OmniRailBlock.connections(contact.state())) {
@@ -434,7 +461,7 @@ public final class RailPhysics {
 		if (OmniRailBlock.findLink(cart.getWorld(), contact.pos(), contact.face(), travel) == null) {
 			return false;
 		}
-		Vec3d surface = surfacePoint(contact.pos(), contact.face());
+		Vec3d surface = surfacePoint(contact, cart.getPos());
 		double along = cart.getPos().subtract(surface).dotProduct(Vec3d.of(travel.getVector()));
 		return along >= 0.35D;
 	}
@@ -460,7 +487,7 @@ public final class RailPhysics {
 			return false;
 		}
 
-		Vec3d surface = surfacePoint(contact.pos(), contact.face());
+		Vec3d surface = surfacePoint(contact, cart.getPos());
 		double along = cart.getPos().subtract(surface).dotProduct(Vec3d.of(travel.getVector()));
 		double predictedAlong = along + Math.max(0.0D, velocity.dotProduct(Vec3d.of(travel.getVector())));
 		RailLink cornerLink = findCornerLink(world, contact.pos(), contact.face(), travel);
@@ -618,6 +645,12 @@ public final class RailPhysics {
 			double lift = Math.max(0.0D, Math.min(0.95D, along + 0.5D));
 			return new Vec3d(edgePoint.x, surfacePoint(pos, Direction.UP).y + lift, edgePoint.z);
 		}
+		if (newFace == Direction.DOWN && ascending != null && newTravel.getAxis().isHorizontal()) {
+			Vec3d center = Vec3d.ofCenter(pos);
+			double edge = axisValue(center, newTravel.getAxis()) - ENTRY_EDGE_OFFSET * axisSign(newTravel);
+			Vec3d edgePoint = withAxisValue(entry, newTravel.getAxis(), edge);
+			return surfacePoint(pos, target, Direction.DOWN, edgePoint);
+		}
 		return entry;
 	}
 
@@ -700,7 +733,7 @@ public final class RailPhysics {
 		if (current.isPresent()) {
 			return current;
 		}
-		double distance = surfacePoint(forced.pos(), forced.face()).squaredDistanceTo(cart.getPos());
+		double distance = surfacePoint(forced.pos(), state, forced.face(), cart.getPos()).squaredDistanceTo(cart.getPos());
 		if (distance <= CONTACT_RANGE_SQ * 1.5D) {
 			return Optional.of(new RailContact(forced.pos(), state, forced.face()));
 		}
@@ -798,6 +831,45 @@ public final class RailPhysics {
 		return Vec3d.of(best.getVector());
 	}
 
+	private static Vec3d travelTangent(RailContact contact, Vec3d velocity) {
+		Direction ascending = ceilingSlopeDirection(contact);
+		if (ascending == null) {
+			return travelTangent(contact.state(), velocity);
+		}
+		Vec3d uphill = Vec3d.of(ascending.getVector()).add(0.0D, 1.0D, 0.0D).normalize();
+		Vec3d horizontal = new Vec3d(velocity.x, 0.0D, velocity.z);
+		if (horizontal.lengthSquared() < 1.0E-5D) {
+			return velocity.dotProduct(uphill) >= 0.0D ? uphill : uphill.multiply(-1.0D);
+		}
+		return horizontal.dotProduct(Vec3d.of(ascending.getVector())) >= 0.0D ? uphill : uphill.multiply(-1.0D);
+	}
+
+	private static Vec3d projectOntoRailTangent(RailContact contact, Vec3d velocity, Vec3d tangent) {
+		Direction ascending = ceilingSlopeDirection(contact);
+		if (ascending == null) {
+			return tangent.multiply(velocity.dotProduct(tangent));
+		}
+		Vec3d horizontalDirection = new Vec3d(tangent.x, 0.0D, tangent.z);
+		if (horizontalDirection.lengthSquared() < 1.0E-5D) {
+			return Vec3d.ZERO;
+		}
+		horizontalDirection = horizontalDirection.normalize();
+		Vec3d horizontal = new Vec3d(velocity.x, 0.0D, velocity.z);
+		double horizontalSpeed = horizontal.dotProduct(horizontalDirection);
+		if (Math.abs(horizontalSpeed) < 1.0E-5D) {
+			horizontalSpeed = velocity.dotProduct(tangent);
+		}
+		return tangent.multiply(horizontalSpeed * Math.sqrt(2.0D));
+	}
+
+	private static Direction ceilingSlopeDirection(RailContact contact) {
+		return isCeilingSlope(contact) ? ascendingDirection(contact.state()) : null;
+	}
+
+	private static boolean isCeilingSlope(RailContact contact) {
+		return contact.face() == Direction.DOWN && ascendingDirection(contact.state()) != null;
+	}
+
 	private static Vec3d applyPassengerInput(AbstractMinecartEntity cart, Vec3d velocity, Direction face) {
 		for (Entity passenger : cart.getPassengerList()) {
 			if (!(passenger instanceof PlayerEntity player) || Math.abs(player.forwardSpeed) < 0.01F) {
@@ -828,6 +900,26 @@ public final class RailPhysics {
 			case WEST -> new Vec3d(pos.getX() + WALL_HIGH, pos.getY() + 0.5D, pos.getZ() + 0.5D);
 			default -> new Vec3d(pos.getX() + 0.5D, pos.getY() + 0.0625D, pos.getZ() + 0.5D);
 		};
+	}
+
+	public static Vec3d surfacePoint(BlockPos pos, BlockState state, Direction face, Vec3d near) {
+		Direction ascending = face == Direction.DOWN ? ascendingDirection(state) : null;
+		if (ascending == null) {
+			return surfacePoint(pos, face);
+		}
+		Vec3d base = surfacePoint(pos, Direction.DOWN);
+		Vec3d uphill = Vec3d.of(ascending.getVector());
+		Vec3d rise = uphill.add(0.0D, 1.0D, 0.0D);
+		Vec3d currentToRaised = projectOntoSegment(near, base, base.add(rise));
+		Vec3d lowerToCurrent = projectOntoSegment(near, base.subtract(rise), base);
+		Vec3d railCenter = near.squaredDistanceTo(currentToRaised) <= near.squaredDistanceTo(lowerToCurrent)
+				? currentToRaised
+				: lowerToCurrent;
+		return railCenter.add(ceilingSlopeBodyNormal(ascending).multiply(CEILING_SLOPE_BODY_OFFSET));
+	}
+
+	private static Vec3d surfacePoint(RailContact contact, Vec3d near) {
+		return surfacePoint(contact.pos(), contact.state(), contact.face(), near);
 	}
 
 	private static double attachedSurfaceY(RailContact contact, Direction.Axis travelAxis, Vec3d surface) {
@@ -865,7 +957,7 @@ public final class RailPhysics {
 			if (requiredFace != null && face != requiredFace) {
 				continue;
 			}
-			double distance = surfacePoint(pos, face).squaredDistanceTo(cart.getPos());
+			double distance = surfacePoint(pos, state, face, cart.getPos()).squaredDistanceTo(cart.getPos());
 			double score = contactScore(cart, pos, state, face, distance);
 			if (score < bestScore) {
 				bestScore = score;
@@ -884,9 +976,17 @@ public final class RailPhysics {
 				score -= 0.22D;
 			}
 		}
+		if (face == Direction.DOWN && ascending != null) {
+			double along = cart.getPos().subtract(surfacePoint(pos, state, face, cart.getPos())).dotProduct(Vec3d.of(ascending.getVector()));
+			if (along > -0.62D && along < 0.62D) {
+				score -= 0.28D;
+			}
+		}
 		Vec3d velocity = cart.getVelocity();
 		if (velocity.lengthSquared() > 1.0E-4D) {
-			Vec3d tangent = travelTangent(state, velocity);
+			Vec3d tangent = face == Direction.DOWN && ascending != null
+					? travelTangent(new RailContact(pos, state, face), velocity)
+					: travelTangent(state, velocity);
 			if (velocity.dotProduct(tangent) > 0.0D) {
 				score -= 0.04D;
 			}
@@ -946,6 +1046,24 @@ public final class RailPhysics {
 
 	private static Vec3d clamp(Vec3d velocity, double max) {
 		return velocity.length() <= max ? velocity : velocity.normalize().multiply(max);
+	}
+
+	private static Vec3d projectOntoSegment(Vec3d point, Vec3d start, Vec3d end) {
+		Vec3d segment = end.subtract(start);
+		double lengthSq = segment.lengthSquared();
+		if (lengthSq < 1.0E-6D) {
+			return start;
+		}
+		double t = clampScalar(point.subtract(start).dotProduct(segment) / lengthSq, 0.0D, 1.0D);
+		return start.add(segment.multiply(t));
+	}
+
+	private static Vec3d ceilingSlopeBodyNormal(Direction ascending) {
+		return Vec3d.of(ascending.getVector()).add(0.0D, -1.0D, 0.0D).normalize();
+	}
+
+	private static double clampScalar(double value, double min, double max) {
+		return Math.max(min, Math.min(max, value));
 	}
 
 	public record RailContact(BlockPos pos, BlockState state, Direction face) {

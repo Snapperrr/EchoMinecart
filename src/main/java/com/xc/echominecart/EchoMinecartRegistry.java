@@ -167,7 +167,7 @@ public final class EchoMinecartRegistry {
 			return ActionResult.PASS;
 		}
 		if (!world.isClient() && world instanceof ServerWorld serverWorld) {
-			Vec3d spawnPos = RailPhysics.surfacePoint(railPos, face);
+			Vec3d spawnPos = RailPhysics.surfacePoint(railPos, railState, face, Vec3d.ofCenter(railPos));
 			AbstractMinecartEntity minecart = AbstractMinecartEntity.create(serverWorld, spawnPos.x, spawnPos.y, spawnPos.z, type, stack, player);
 			minecart.refreshPositionAndAngles(spawnPos.x, spawnPos.y, spawnPos.z, yawForRail(railState), 0.0F);
 			minecart.setNoGravity(face != Direction.UP);

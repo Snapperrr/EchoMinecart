@@ -209,7 +209,19 @@ public abstract class CameraMixin {
 	}
 
 	private Vec3d ceilingCameraPos(BlockView area, RailPhysics.RailContact contact, Vec3d cartPos) {
-		double railY = RailPhysics.surfacePoint(contact.pos(), Direction.DOWN).y;
+		Direction ascending = RailPhysics.ascendingDirection(contact.state());
+		if (ascending != null) {
+			Vec3d normal = ceilingSlopeBodyNormal(ascending);
+			for (double drop : new double[]{CEILING_CAMERA_DROP, 0.64D, 0.54D, 0.44D, 0.34D, 0.24D}) {
+				Vec3d candidate = cartPos.add(normal.multiply(drop));
+				if (!hasSolidCollisionAt(area, candidate)) {
+					return candidate;
+				}
+			}
+			return cartPos.add(normal.multiply(0.18D));
+		}
+
+		double railY = RailPhysics.surfacePoint(contact.pos(), contact.state(), Direction.DOWN, cartPos).y;
 		for (double drop : new double[]{CEILING_CAMERA_DROP, 0.64D, 0.54D, 0.44D, 0.34D, 0.24D}) {
 			Vec3d candidate = new Vec3d(cartPos.x, railY - drop, cartPos.z);
 			if (!hasSolidCollisionAt(area, candidate)) {
@@ -217,6 +229,10 @@ public abstract class CameraMixin {
 			}
 		}
 		return new Vec3d(cartPos.x, railY - 0.18D, cartPos.z);
+	}
+
+	private Vec3d ceilingSlopeBodyNormal(Direction ascending) {
+		return Vec3d.of(ascending.getVector()).add(0.0D, -1.0D, 0.0D).normalize();
 	}
 
 	private void refreshPlanes() {

@@ -186,7 +186,14 @@ public final class CarriageClientVisuals {
 	}
 
 	private static Quaternionf transitionRotation(BlockState state, Direction face) {
-		if (face.getAxis().isVertical() || !state.contains(OmniRailBlock.SHAPE)) {
+		if (!state.contains(OmniRailBlock.SHAPE)) {
+			return faceRotation(face);
+		}
+		if (face == Direction.DOWN) {
+			Direction ascending = RailPhysics.ascendingDirection(state);
+			return ascending == null ? faceRotation(face) : ceilingSlopeRotation(ascending);
+		}
+		if (face.getAxis().isVertical()) {
 			return faceRotation(face);
 		}
 		RailShape shape = state.get(OmniRailBlock.SHAPE);
@@ -204,6 +211,22 @@ public final class CarriageClientVisuals {
 		return switch (face) {
 			case EAST, WEST -> RotationAxis.POSITIVE_Z.rotationDegrees(angle);
 			default -> RotationAxis.POSITIVE_X.rotationDegrees(angle);
+		};
+	}
+
+	private static Quaternionf ceilingSlopeRotation(Direction ascending) {
+		return switch (ascending) {
+			case NORTH -> RotationAxis.POSITIVE_X.rotationDegrees(-135.0F);
+			case SOUTH -> RotationAxis.POSITIVE_X.rotationDegrees(135.0F);
+			case EAST -> {
+				Quaternionf rotation = RotationAxis.POSITIVE_Z.rotationDegrees(45.0F);
+				yield rotation.mul(RotationAxis.POSITIVE_X.rotationDegrees(180.0F));
+			}
+			case WEST -> {
+				Quaternionf rotation = RotationAxis.POSITIVE_Z.rotationDegrees(-45.0F);
+				yield rotation.mul(RotationAxis.POSITIVE_X.rotationDegrees(180.0F));
+			}
+			default -> faceRotation(Direction.DOWN);
 		};
 	}
 
@@ -241,7 +264,7 @@ public final class CarriageClientVisuals {
 		if (connections.isEmpty()) {
 			return null;
 		}
-		if (face == Direction.UP && state.contains(OmniRailBlock.SHAPE)) {
+		if ((face == Direction.UP || face == Direction.DOWN) && state.contains(OmniRailBlock.SHAPE)) {
 			return switch (state.get(OmniRailBlock.SHAPE)) {
 				case EAST_WEST, ASCENDING_EAST -> Direction.EAST;
 				case ASCENDING_WEST -> Direction.WEST;
