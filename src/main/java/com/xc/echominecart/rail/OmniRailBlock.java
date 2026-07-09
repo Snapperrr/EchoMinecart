@@ -49,6 +49,7 @@ public class OmniRailBlock extends AbstractRailBlock {
 	public static final DirectionProperty FACE = DirectionProperty.of("face");
 	public static final BooleanProperty POWERED = Properties.POWERED;
 	public static final BooleanProperty WATERLOGGED = Properties.WATERLOGGED;
+	public static final BooleanProperty MANUAL = BooleanProperty.of("manual");
 	public static final BooleanProperty NORTH = BooleanProperty.of("north");
 	public static final BooleanProperty SOUTH = BooleanProperty.of("south");
 	public static final BooleanProperty EAST = BooleanProperty.of("east");
@@ -89,6 +90,7 @@ public class OmniRailBlock extends AbstractRailBlock {
 				.with(FACE, Direction.UP)
 				.with(POWERED, false)
 				.with(WATERLOGGED, false)
+				.with(MANUAL, false)
 				.with(NORTH, true)
 				.with(SOUTH, true)
 				.with(EAST, false)
@@ -197,7 +199,7 @@ public class OmniRailBlock extends AbstractRailBlock {
 
 	@Override
 	protected void appendProperties(StateManager.Builder<Block, BlockState> builder) {
-		builder.add(SHAPE, FACE, POWERED, WATERLOGGED, NORTH, SOUTH, EAST, WEST, UP, DOWN);
+		builder.add(SHAPE, FACE, POWERED, WATERLOGGED, MANUAL, NORTH, SOUTH, EAST, WEST, UP, DOWN);
 	}
 
 	public static boolean isOmniRail(BlockState state) {
@@ -288,6 +290,9 @@ public class OmniRailBlock extends AbstractRailBlock {
 
 	public static BlockState withConnections(WorldView world, BlockPos pos, BlockState state) {
 		if (!isOmniRail(state)) {
+			return state;
+		}
+		if (state.get(MANUAL)) {
 			return state;
 		}
 		Direction face = state.get(FACE);
@@ -640,6 +645,13 @@ public class OmniRailBlock extends AbstractRailBlock {
 			return withConnections(world, pos, rail.withWorldPower(world, pos, connected));
 		}
 		return connected;
+	}
+
+	public static BlockState autoRefreshState(WorldAccess world, BlockPos pos, BlockState state) {
+		if (!isOmniRail(state)) {
+			return state;
+		}
+		return refreshedState(world, pos, state.with(MANUAL, false));
 	}
 
 	private BlockState withWorldPower(WorldAccess world, BlockPos pos, BlockState state) {

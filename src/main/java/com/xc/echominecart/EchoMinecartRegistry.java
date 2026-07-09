@@ -3,6 +3,7 @@ package com.xc.echominecart;
 import com.xc.echominecart.carriage.CarriageManager;
 import com.xc.echominecart.item.BoosterRodItem;
 import com.xc.echominecart.item.MinecartLinkToolItem;
+import com.xc.echominecart.item.RailRepairToolItem;
 import com.xc.echominecart.item.TransportBinderItem;
 import com.xc.echominecart.trip.TripManager;
 import net.fabricmc.fabric.api.networking.v1.EntityTrackingEvents;
@@ -62,6 +63,7 @@ public final class EchoMinecartRegistry {
 	public static final MinecartLinkToolItem MINECART_LINK_TOOL = registerItem("minecart_link_tool", new MinecartLinkToolItem(new Item.Settings().maxCount(1)));
 	public static final TransportBinderItem TRANSPORT_BINDER = registerItem("transport_binder", new TransportBinderItem(new Item.Settings().maxCount(1)));
 	public static final BoosterRodItem BOOSTER_ROD = registerItem("booster_rod", new BoosterRodItem(new Item.Settings().maxCount(1)));
+	public static final RailRepairToolItem RAIL_REPAIR_TOOL = registerItem("rail_repair_tool", new RailRepairToolItem(new Item.Settings().maxCount(1)));
 
 	private EchoMinecartRegistry() {
 	}
@@ -77,6 +79,7 @@ public final class EchoMinecartRegistry {
 			entries.add(MINECART_LINK_TOOL);
 			entries.add(TRANSPORT_BINDER);
 			entries.add(BOOSTER_ROD);
+			entries.add(RAIL_REPAIR_TOOL);
 		});
 		ServerTickEvents.END_SERVER_TICK.register(CarriageManager::serverTick);
 		UseBlockCallback.EVENT.register(EchoMinecartRegistry::useBlock);
@@ -109,6 +112,12 @@ public final class EchoMinecartRegistry {
 
 	private static ActionResult useBlock(PlayerEntity player, World world, Hand hand, BlockHitResult hitResult) {
 		ItemStack stack = player.getStackInHand(hand);
+		if (stack.getItem() instanceof RailRepairToolItem tool) {
+			ActionResult result = tool.useOnRail(player, world, hitResult);
+			if (result != ActionResult.PASS) {
+				return result;
+			}
+		}
 		Block replacement = omniRailFor(stack);
 		if (replacement == null) {
 			return placeMinecartOnAttachedRail(player, world, hitResult, stack);
