@@ -179,6 +179,8 @@ public final class RailPhysics {
 		CONTROLLED.add(cart.getUuid());
 		cart.setNoGravity(true);
 		Vec3d velocity = projectOntoPlane(cart.getVelocity(), Direction.UP);
+		Direction ascending = ascendingDirection(contact.state());
+		velocity = steerInPlaneCorner(cart, contact, velocity);
 		Vec3d tangent = travelTangent(contact.state(), velocity);
 		velocity = tangent.multiply(velocity.dotProduct(tangent));
 		if (velocity.lengthSquared() < 0.0025D) {
@@ -188,7 +190,8 @@ public final class RailPhysics {
 		velocity = clamp(new Vec3d(velocity.x, 0.0D, velocity.z), MAX_ATTACHED_SPEED);
 		Vec3d surface = surfacePoint(contact.pos(), Direction.UP);
 		Vec3d next = cart.getPos().add(velocity);
-		cart.setPosition(next.x, surface.y + 0.16D, next.z);
+		double y = ascending == null ? surface.y : floorSlopeY(contact.pos(), ascending, next);
+		cart.setPosition(next.x, y + 0.16D, next.z);
 		cart.setVelocity(velocity);
 		cart.velocityModified = true;
 	}
@@ -934,6 +937,12 @@ public final class RailPhysics {
 
 	private static Vec3d surfacePoint(RailContact contact, Vec3d near) {
 		return surfacePoint(contact.pos(), contact.state(), contact.face(), near);
+	}
+
+	private static double floorSlopeY(BlockPos pos, Direction ascending, Vec3d near) {
+		Vec3d base = surfacePoint(pos, Direction.UP);
+		double along = near.subtract(base).dotProduct(Vec3d.of(ascending.getVector()));
+		return base.y + clampScalar(along + 0.5D, 0.0D, 0.95D);
 	}
 
 	private static double attachedSurfaceY(RailContact contact, Direction.Axis travelAxis, Vec3d surface) {
