@@ -37,6 +37,12 @@ public final class RailRepairToolItem extends Item {
 		if (world.isClient()) {
 			return ActionResult.SUCCESS;
 		}
+		if (player.isSneaking() && !state.get(OmniRailBlock.MANUAL)) {
+			BlockState locked = lockCurrentState(world, pos, state);
+			world.setBlockState(pos, locked, Block.NOTIFY_ALL);
+			player.sendMessage(Text.literal("Rail state locked."), true);
+			return ActionResult.SUCCESS;
+		}
 		if (player.isSneaking()) {
 			BlockState refreshed = OmniRailBlock.autoRefreshState(world, pos, state);
 			world.setBlockState(pos, refreshed, Block.NOTIFY_ALL);
@@ -90,9 +96,11 @@ public final class RailRepairToolItem extends Item {
 
 		Direction horizontal = face.getAxis() == Direction.Axis.X ? Direction.NORTH : Direction.EAST;
 		RailShape horizontalShape = horizontal.getAxis() == Direction.Axis.X ? RailShape.EAST_WEST : RailShape.NORTH_SOUTH;
-		List<RailPreset> presets = new ArrayList<>(4);
+		List<RailPreset> presets = new ArrayList<>(6);
 		presets.add(new RailPreset(RailShape.NORTH_SOUTH, Direction.UP, Direction.DOWN));
 		presets.add(new RailPreset(horizontalShape, horizontal, horizontal.getOpposite()));
+		presets.add(new RailPreset(RailShape.NORTH_EAST, horizontal, horizontal.getOpposite()));
+		presets.add(new RailPreset(RailShape.NORTH_WEST, horizontal, horizontal.getOpposite()));
 		presets.add(new RailPreset(RailShape.ASCENDING_NORTH, Direction.UP));
 		presets.add(new RailPreset(RailShape.ASCENDING_SOUTH, Direction.DOWN));
 		return presets;
@@ -164,6 +172,16 @@ public final class RailRepairToolItem extends Item {
 		return updated;
 	}
 
+	private static BlockState lockCurrentState(World world, BlockPos pos, BlockState state) {
+		OmniRailBlock.LateralTransition lateral = OmniRailBlock.lateralTransition(world, pos, state);
+		RailShape lockedShape = switch (lateral) {
+			case CLOCKWISE -> RailShape.NORTH_EAST;
+			case COUNTERCLOCKWISE -> RailShape.NORTH_WEST;
+			default -> state.get(OmniRailBlock.SHAPE);
+		};
+		return state.with(OmniRailBlock.MANUAL, true).with(OmniRailBlock.SHAPE, lockedShape);
+	}
+
 	private static BlockState setConnection(BlockState state, Direction direction, boolean value) {
 		return switch (direction) {
 			case NORTH -> state.with(OmniRailBlock.NORTH, value);
@@ -176,6 +194,15 @@ public final class RailRepairToolItem extends Item {
 	}
 
 	private static String describe(RailPreset preset) {
+		if (preset.connections().size() == 2
+				&& preset.connections().getFirst().getOpposite() == preset.connections().getLast()) {
+			if (preset.shape() == RailShape.NORTH_EAST) {
+				return "lateral_clockwise";
+			}
+			if (preset.shape() == RailShape.NORTH_WEST) {
+				return "lateral_counterclockwise";
+			}
+		}
 		return preset.shape().asString() + " " + preset.connections();
 	}
 

@@ -2,7 +2,6 @@ package com.xc.echominecart.rail;
 
 import com.xc.echominecart.rail.OmniRailBlock.LinkKind;
 import com.xc.echominecart.rail.OmniRailBlock.RailLink;
-import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -36,6 +35,7 @@ public final class RailPhysics {
 	private static final double ENTRY_EDGE_OFFSET = 0.45D;
 	private static final double WALL_TO_FLOOR_EDGE = 0.36D;
 	private static final long TRANSITION_LOCK_TICKS = 10L;
+	private static final long STRICT_HANDOFF_LOCK_TICKS = 2L;
 	private static final double CEILING_RIDE_Y = 0.38D;
 	private static final double CEILING_SLOPE_BODY_OFFSET = 0.52D;
 	private static final double WALL_HORIZONTAL_RIDE_Y = 0.38D;
@@ -46,6 +46,8 @@ public final class RailPhysics {
 	private static final Set<UUID> CONTROLLED = new HashSet<>();
 	private static final Map<UUID, ForcedContact> TRANSITION_LOCKS = new HashMap<>();
 	private static final Map<UUID, Long> DETACHED_UNTIL = new HashMap<>();
+	private static final Map<UUID, LateralArc> LATERAL_ARCS = new HashMap<>();
+	private static final Map<UUID, VerticalWallArc> VERTICAL_WALL_ARCS = new HashMap<>();
 
 	private RailPhysics() {
 	}
@@ -58,10 +60,18 @@ public final class RailPhysics {
 		CONTROLLED.retainAll(liveCartIds);
 		TRANSITION_LOCKS.keySet().retainAll(liveCartIds);
 		DETACHED_UNTIL.keySet().retainAll(liveCartIds);
+		LATERAL_ARCS.keySet().retainAll(liveCartIds);
+		VERTICAL_WALL_ARCS.keySet().retainAll(liveCartIds);
 	}
 
 	public static void beforeCartTick(AbstractMinecartEntity cart) {
 		if (!(cart.getWorld() instanceof ServerWorld world)) {
+			return;
+		}
+		if (tickVerticalWallArc(world, cart)) {
+			return;
+		}
+		if (tickLateralArc(world, cart)) {
 			return;
 		}
 		Optional<RailContact> forced = forcedContact(world, cart);
@@ -76,7 +86,7 @@ public final class RailPhysics {
 			return;
 		}
 
-		RailContact contact = healContact(world, found.get());
+		RailContact contact = found.get();
 		triggerActivator(cart, contact);
 		boolean forcedFloor = forced.isPresent() && forced.get().face() == Direction.UP;
 
@@ -151,15 +161,6 @@ public final class RailPhysics {
 		cart.setPosition(next.x, surface.y, next.z);
 		cart.setVelocity(velocity);
 		cart.velocityModified = true;
-	}
-
-	private static RailContact healContact(ServerWorld world, RailContact contact) {
-		BlockState healed = OmniRailBlock.withConnections(world, contact.pos(), contact.state());
-		if (healed == contact.state()) {
-			return contact;
-		}
-		world.setBlockState(contact.pos(), healed, Block.NOTIFY_ALL);
-		return new RailContact(contact.pos(), healed, contact.face());
 	}
 
 	public static Direction ascendingDirection(BlockState state) {
@@ -486,11 +487,25 @@ public final class RailPhysics {
 	private static boolean tryCornerTransition(ServerWorld world, AbstractMinecartEntity cart, RailContact contact) {
 		Vec3d velocity = cart.getVelocity();
 		Direction travel = travelDirection(contact.state(), velocity);
+		RailLink verticalWallHandoff = null;
+		if (travel == null && contact.face().getAxis().isHorizontal()
+				&& Math.abs(velocity.y) >= MIN_TRAVEL_SPEED) {
+			Direction verticalTravel = velocity.y > 0.0D ? Direction.UP : Direction.DOWN;
+			verticalWallHandoff = findVerticalWallHandoff(world, cart, contact, verticalTravel);
+			if (verticalWallHandoff != null) {
+				travel = verticalTravel;
+			}
+		}
 		if (travel == null) {
 			return false;
 		}
 
 		RailLink link = OmniRailBlock.findLink(world, contact.pos(), contact.face(), travel);
+		if (link == null) {
+			link = verticalWallHandoff != null
+					? verticalWallHandoff
+					: findVerticalWallHandoff(world, cart, contact, travel);
+		}
 		if (contact.face().getAxis().isHorizontal() && travel == Direction.DOWN) {
 			RailLink floorLink = link != null && link.face() == Direction.UP
 					? link
@@ -502,6 +517,9 @@ public final class RailPhysics {
 		}
 		if (link == null) {
 			return false;
+		}
+		if (tryDescendingCeilingSlopeHandoff(world, cart, contact, link, travel, velocity)) {
+			return true;
 		}
 
 		Vec3d surface = surfacePoint(contact, cart.getPos());
@@ -520,6 +538,41 @@ public final class RailPhysics {
 		return true;
 	}
 
+	private static boolean tryDescendingCeilingSlopeHandoff(ServerWorld world, AbstractMinecartEntity cart,
+			RailContact contact, RailLink link, Direction travel, Vec3d velocity) {
+		Direction ascending = ceilingSlopeDirection(contact);
+		if (ascending == null || velocity.y >= -MIN_TRAVEL_SPEED || travel != ascending.getOpposite()
+				|| link.kind() != LinkKind.STRAIGHT || link.face() != Direction.DOWN) {
+			return false;
+		}
+		BlockState target = world.getBlockState(link.pos());
+		if (!OmniRailBlock.isOmniRail(target) || OmniRailBlock.face(target) != Direction.DOWN
+				|| ascendingDirection(target) != null) {
+			return false;
+		}
+
+		Vec3d travelVector = Vec3d.of(travel.getVector());
+		double along = cart.getPos().subtract(Vec3d.ofCenter(contact.pos())).dotProduct(travelVector);
+		double predictedAlong = along + Math.max(0.0D, velocity.dotProduct(travelVector));
+		if (predictedAlong < 0.12D) {
+			return false;
+		}
+
+		Vec3d targetSurface = surfacePoint(link.pos(), target, Direction.DOWN, Vec3d.ofCenter(link.pos()));
+		Vec3d targetCenter = Vec3d.ofCenter(link.pos());
+		double entryAxis = axisValue(targetCenter, travel.getAxis()) - 0.42D * axisSign(travel);
+		Vec3d entry = withAxisValue(targetSurface, travel.getAxis(), entryAxis);
+		double exitSpeed = Math.max(velocity.horizontalLength(), MIN_UPHILL_SPEED);
+		cart.refreshPositionAfterTeleport(entry);
+		cart.setVelocity(travelVector.multiply(exitSpeed));
+		cart.velocityModified = true;
+		TRANSITION_LOCKS.put(cart.getUuid(), new ForcedContact(
+				link.pos(), Direction.DOWN, world.getTime() + STRICT_HANDOFF_LOCK_TICKS, true));
+		CONTROLLED.add(cart.getUuid());
+		cart.setNoGravity(true);
+		return true;
+	}
+
 	private static RailLink findCornerLink(ServerWorld world, BlockPos pos, Direction face, Direction travel) {
 		for (RailLink candidate : OmniRailBlock.linkCandidates(pos, face, travel)) {
 			if (candidate.kind() == LinkKind.STRAIGHT) {
@@ -533,7 +586,48 @@ public final class RailPhysics {
 		return null;
 	}
 
+	private static RailLink findVerticalWallHandoff(ServerWorld world, AbstractMinecartEntity cart,
+			RailContact contact, Direction travel) {
+		Direction sourceFace = contact.face();
+		if (!sourceFace.getAxis().isHorizontal() || !travel.getAxis().isVertical()) {
+			return null;
+		}
+
+		Vec3d predicted = cart.getPos().add(cart.getVelocity());
+		RailLink best = null;
+		double bestScore = Double.MAX_VALUE;
+		BlockPos forward = contact.pos().offset(travel);
+		for (Direction targetFace : HORIZONTAL) {
+			if (targetFace.getAxis() == sourceFace.getAxis()) {
+				continue;
+			}
+			List<BlockPos> candidates = List.of(
+					forward,
+					forward.offset(sourceFace.getOpposite()).offset(targetFace),
+					forward.offset(sourceFace).offset(targetFace.getOpposite()));
+			for (BlockPos candidate : candidates) {
+				BlockState target = world.getBlockState(candidate);
+				if (!OmniRailBlock.isOmniRail(target) || OmniRailBlock.face(target) != targetFace) {
+					continue;
+				}
+				List<Direction> targetConnections = OmniRailBlock.connections(target);
+				if (!targetConnections.contains(Direction.UP) && !targetConnections.contains(Direction.DOWN)) {
+					continue;
+				}
+				double score = surfacePoint(candidate, target, targetFace, predicted).squaredDistanceTo(predicted);
+				if (score < bestScore) {
+					bestScore = score;
+					best = new RailLink(candidate, targetFace, LinkKind.VERTICAL_WALL_HANDOFF);
+				}
+			}
+		}
+		return best;
+	}
+
 	private static boolean reachedCornerThreshold(RailContact contact, Direction travel, RailLink link, double along) {
+		if (link.kind() == LinkKind.VERTICAL_WALL_HANDOFF) {
+			return along >= 0.38D;
+		}
 		if (link.kind() == LinkKind.OUTER_CORNER) {
 			return along >= 0.40D;
 		}
@@ -551,20 +645,180 @@ public final class RailPhysics {
 		Direction newFace = link.face();
 		Direction newTravel = cornerExitDirection(world, contact, link, travel);
 		BlockState target = world.getBlockState(link.pos());
+		boolean verticalWallHandoff = link.kind() == LinkKind.VERTICAL_WALL_HANDOFF;
+		if (verticalWallHandoff) {
+			newTravel = travel;
+		}
 		Vec3d entry = cornerEntryPoint(link.pos(), target, newFace, newTravel);
 		Vec3d center = Vec3d.ofCenter(link.pos());
-		double edge = axisValue(center, newTravel.getAxis()) - entryEdgeOffset(contact.face(), newFace, newTravel) * axisSign(newTravel);
+		double edgeOffset = verticalWallHandoff ? 0.32D : entryEdgeOffset(contact.face(), newFace, newTravel);
+		double edge = axisValue(center, newTravel.getAxis()) - edgeOffset * axisSign(newTravel);
 		entry = withAxisValue(entry, newTravel.getAxis(), edge);
 		if (newFace == Direction.UP && contact.face().getAxis().isHorizontal() && travel == Direction.DOWN) {
 			entry = new Vec3d(entry.x, surfacePoint(link.pos(), Direction.UP).y + 0.22D, entry.z);
+		}
+		if (isLateralWallCorner(world, contact, link, travel, newTravel)) {
+			startLateralArc(world, cart, link, travel, newTravel, entry, speed);
+			return;
+		}
+		if (verticalWallHandoff) {
+			startVerticalWallArc(world, cart, link, newTravel, entry, speed);
+			return;
 		}
 
 		cart.refreshPositionAfterTeleport(entry);
 		cart.setVelocity(Vec3d.of(newTravel.getVector()).multiply(speed));
 		cart.velocityModified = true;
-		TRANSITION_LOCKS.put(cart.getUuid(), new ForcedContact(link.pos(), newFace, world.getTime() + TRANSITION_LOCK_TICKS));
+		TRANSITION_LOCKS.put(cart.getUuid(), new ForcedContact(
+				link.pos(), newFace, world.getTime() + TRANSITION_LOCK_TICKS));
 		CONTROLLED.add(cart.getUuid());
 		cart.setNoGravity(true);
+	}
+
+	private static void startVerticalWallArc(ServerWorld world, AbstractMinecartEntity cart,
+			RailLink link, Direction exitTravel, Vec3d end, double requestedSpeed) {
+		Vec3d start = cart.getPos();
+		Vec3d pivot = withAxisValue(start, link.face().getAxis(), axisValue(end, link.face().getAxis()));
+		double heightDelta = end.y - start.y;
+		double endpointHandle = Math.min(0.12D, Math.abs(heightDelta) * 0.22D);
+		Vec3d travelVector = Vec3d.of(exitTravel.getVector());
+		Vec3d controlOne = start.add(travelVector.multiply(endpointHandle));
+		Vec3d controlTwo = new Vec3d(pivot.x, start.y + heightDelta * 0.36D, pivot.z);
+		Vec3d controlThree = new Vec3d(pivot.x, start.y + heightDelta * 0.64D, pivot.z);
+		Vec3d controlFour = end.subtract(travelVector.multiply(endpointHandle));
+		double pathLength = start.distanceTo(pivot) + pivot.distanceTo(end) + Math.abs(heightDelta);
+		double speed = Math.max(MIN_UPHILL_SPEED, Math.min(requestedSpeed, MAX_ATTACHED_SPEED));
+		int duration = (int) Math.ceil(pathLength * 1.15D / Math.max(speed, 0.16D));
+		duration = Math.max(4, Math.min(8, duration));
+		VERTICAL_WALL_ARCS.put(cart.getUuid(), new VerticalWallArc(
+				start, controlOne, controlTwo, controlThree, controlFour, end,
+				link.pos(), link.face(), exitTravel, speed, duration));
+		tickVerticalWallArc(world, cart);
+	}
+
+	private static boolean tickVerticalWallArc(ServerWorld world, AbstractMinecartEntity cart) {
+		VerticalWallArc arc = VERTICAL_WALL_ARCS.get(cart.getUuid());
+		if (arc == null) {
+			return false;
+		}
+		BlockState target = world.getBlockState(arc.targetPos);
+		if (!OmniRailBlock.isOmniRail(target) || OmniRailBlock.face(target) != arc.targetFace) {
+			VERTICAL_WALL_ARCS.remove(cart.getUuid());
+			return false;
+		}
+
+		arc.step++;
+		double t = clampScalar((double) arc.step / arc.duration, 0.0D, 1.0D);
+		Vec3d point = quinticPoint(arc, t);
+		Vec3d derivative = quinticDerivative(arc, t);
+		Vec3d tangent = derivative.lengthSquared() > 1.0E-6D
+				? derivative.normalize()
+				: Vec3d.of(arc.exitTravel.getVector());
+		cart.setPosition(point.x, point.y, point.z);
+		cart.setVelocity(tangent.multiply(arc.speed));
+		cart.velocityModified = true;
+		cart.setNoGravity(true);
+		CONTROLLED.add(cart.getUuid());
+
+		if (arc.step >= arc.duration) {
+			VERTICAL_WALL_ARCS.remove(cart.getUuid());
+			cart.setPosition(arc.end.x, arc.end.y, arc.end.z);
+			cart.setVelocity(Vec3d.of(arc.exitTravel.getVector()).multiply(arc.speed));
+			TRANSITION_LOCKS.put(cart.getUuid(), new ForcedContact(
+					arc.targetPos, arc.targetFace, world.getTime() + STRICT_HANDOFF_LOCK_TICKS, true));
+		}
+		return true;
+	}
+
+	private static Vec3d quinticPoint(VerticalWallArc arc, double t) {
+		double u = 1.0D - t;
+		return arc.start.multiply(u * u * u * u * u)
+				.add(arc.controlOne.multiply(5.0D * u * u * u * u * t))
+				.add(arc.controlTwo.multiply(10.0D * u * u * u * t * t))
+				.add(arc.controlThree.multiply(10.0D * u * u * t * t * t))
+				.add(arc.controlFour.multiply(5.0D * u * t * t * t * t))
+				.add(arc.end.multiply(t * t * t * t * t));
+	}
+
+	private static Vec3d quinticDerivative(VerticalWallArc arc, double t) {
+		double u = 1.0D - t;
+		return arc.controlOne.subtract(arc.start).multiply(5.0D * u * u * u * u)
+				.add(arc.controlTwo.subtract(arc.controlOne).multiply(20.0D * u * u * u * t))
+				.add(arc.controlThree.subtract(arc.controlTwo).multiply(30.0D * u * u * t * t))
+				.add(arc.controlFour.subtract(arc.controlThree).multiply(20.0D * u * t * t * t))
+				.add(arc.end.subtract(arc.controlFour).multiply(5.0D * t * t * t * t));
+	}
+
+	private static boolean isLateralWallCorner(ServerWorld world, RailContact contact, RailLink link,
+			Direction oldTravel, Direction newTravel) {
+		Direction oldFace = contact.face();
+		Direction newFace = link.face();
+		if (oldFace.getAxis().isVertical() || newFace.getAxis().isVertical()
+				|| oldFace.getAxis() == newFace.getAxis()
+				|| !oldTravel.getAxis().isHorizontal()
+				|| !newTravel.getAxis().isHorizontal()) {
+			return false;
+		}
+		RailLink lateral = OmniRailBlock.findLateralLink(world, contact.pos(), contact.state());
+		return lateral != null && lateral.equals(link);
+	}
+
+	private static void startLateralArc(ServerWorld world, AbstractMinecartEntity cart,
+			RailLink link, Direction oldTravel, Direction newTravel, Vec3d end, double requestedSpeed) {
+		Vec3d start = cart.getPos();
+		Vec3d oldTangent = Vec3d.of(oldTravel.getVector());
+		Vec3d newTangent = Vec3d.of(newTravel.getVector());
+		double chord = Math.max(0.4D, start.distanceTo(end));
+		double handle = Math.min(0.62D, Math.max(0.28D, chord * 0.52D));
+		Vec3d controlOne = start.add(oldTangent.multiply(handle));
+		Vec3d controlTwo = end.subtract(newTangent.multiply(handle));
+		double speed = Math.max(MIN_UPHILL_SPEED, Math.min(requestedSpeed, MAX_ATTACHED_SPEED));
+		int duration = (int) Math.ceil(chord * 1.35D / Math.max(speed, 0.16D));
+		duration = Math.max(3, Math.min(6, duration));
+		LateralArc arc = new LateralArc(
+				start, controlOne, controlTwo, end, link.pos(), link.face(), newTravel, speed, duration);
+		LATERAL_ARCS.put(cart.getUuid(), arc);
+		tickLateralArc(world, cart);
+	}
+
+	private static boolean tickLateralArc(ServerWorld world, AbstractMinecartEntity cart) {
+		LateralArc arc = LATERAL_ARCS.get(cart.getUuid());
+		if (arc == null) {
+			return false;
+		}
+		BlockState target = world.getBlockState(arc.targetPos);
+		if (!OmniRailBlock.isOmniRail(target) || OmniRailBlock.face(target) != arc.targetFace) {
+			LATERAL_ARCS.remove(cart.getUuid());
+			return false;
+		}
+
+		arc.step++;
+		double t = clampScalar((double) arc.step / arc.duration, 0.0D, 1.0D);
+		double inverse = 1.0D - t;
+		Vec3d point = arc.start.multiply(inverse * inverse * inverse)
+				.add(arc.controlOne.multiply(3.0D * inverse * inverse * t))
+				.add(arc.controlTwo.multiply(3.0D * inverse * t * t))
+				.add(arc.end.multiply(t * t * t));
+		Vec3d derivative = arc.controlOne.subtract(arc.start).multiply(3.0D * inverse * inverse)
+				.add(arc.controlTwo.subtract(arc.controlOne).multiply(6.0D * inverse * t))
+				.add(arc.end.subtract(arc.controlTwo).multiply(3.0D * t * t));
+		Vec3d tangent = derivative.lengthSquared() > 1.0E-6D
+				? derivative.normalize()
+				: Vec3d.of(arc.exitTravel.getVector());
+		cart.setPosition(point.x, point.y, point.z);
+		cart.setVelocity(tangent.multiply(arc.speed));
+		cart.velocityModified = true;
+		cart.setNoGravity(true);
+		CONTROLLED.add(cart.getUuid());
+
+		if (arc.step >= arc.duration) {
+			LATERAL_ARCS.remove(cart.getUuid());
+			cart.setPosition(arc.end.x, arc.end.y, arc.end.z);
+			cart.setVelocity(Vec3d.of(arc.exitTravel.getVector()).multiply(arc.speed));
+			TRANSITION_LOCKS.put(cart.getUuid(), new ForcedContact(
+					arc.targetPos, arc.targetFace, world.getTime() + STRICT_HANDOFF_LOCK_TICKS, true));
+		}
+		return true;
 	}
 
 	private static RailLink findWallToFloorLink(ServerWorld world, BlockPos pos, Direction face) {
@@ -600,7 +854,7 @@ public final class RailPhysics {
 	}
 
 	private static void performWallToFloor(ServerWorld world, AbstractMinecartEntity cart, RailContact contact, RailLink floorLink, double speed) {
-		BlockState target = refreshTarget(world, floorLink);
+		BlockState target = targetState(world, floorLink);
 		Direction exit = floorExitDirection(target, contact.face(), cart.getVelocity());
 		Vec3d surface = surfacePoint(floorLink.pos(), Direction.UP);
 		Vec3d center = Vec3d.ofCenter(floorLink.pos());
@@ -675,7 +929,7 @@ public final class RailPhysics {
 		Direction fallback = link.kind() == LinkKind.INNER_CORNER
 				? contact.face()
 				: contact.face().getOpposite();
-		BlockState target = refreshTarget(world, link);
+		BlockState target = targetState(world, link);
 		List<Direction> targetConnections = OmniRailBlock.connections(target);
 		if (targetConnections.isEmpty()) {
 			return fallback;
@@ -709,17 +963,8 @@ public final class RailPhysics {
 		return entrance == null ? targetConnections.getFirst() : entrance;
 	}
 
-	private static BlockState refreshTarget(ServerWorld world, RailLink link) {
-		BlockState target = world.getBlockState(link.pos());
-		if (!OmniRailBlock.isOmniRail(target)) {
-			return target;
-		}
-		BlockState refreshed = OmniRailBlock.withConnections(world, link.pos(), target);
-		if (refreshed != target) {
-			world.setBlockState(link.pos(), refreshed, Block.NOTIFY_ALL);
-			return refreshed;
-		}
-		return target;
+	private static BlockState targetState(ServerWorld world, RailLink link) {
+		return world.getBlockState(link.pos());
 	}
 
 	private static Direction entranceDirection(ServerWorld world, RailContact from, RailLink targetLink) {
@@ -746,12 +991,20 @@ public final class RailPhysics {
 			TRANSITION_LOCKS.remove(cart.getUuid());
 			return Optional.empty();
 		}
+		double forcedDistance = surfacePoint(forced.pos(), state, forced.face(), cart.getPos())
+				.squaredDistanceTo(cart.getPos());
+		if (forced.strict()) {
+			if (forcedDistance <= CONTACT_RANGE_SQ * 1.5D) {
+				return Optional.of(new RailContact(forced.pos(), state, forced.face()));
+			}
+			TRANSITION_LOCKS.remove(cart.getUuid());
+			return Optional.empty();
+		}
 		Optional<RailContact> current = findContact(world, cart, forced.face());
 		if (current.isPresent()) {
 			return current;
 		}
-		double distance = surfacePoint(forced.pos(), state, forced.face(), cart.getPos()).squaredDistanceTo(cart.getPos());
-		if (distance <= CONTACT_RANGE_SQ * 1.5D) {
+		if (forcedDistance <= CONTACT_RANGE_SQ * 1.5D) {
 			return Optional.of(new RailContact(forced.pos(), state, forced.face()));
 		}
 		TRANSITION_LOCKS.remove(cart.getUuid());
@@ -1092,6 +1345,66 @@ public final class RailPhysics {
 	public record RailContact(BlockPos pos, BlockState state, Direction face) {
 	}
 
-	private record ForcedContact(BlockPos pos, Direction face, long untilTick) {
+	private record ForcedContact(BlockPos pos, Direction face, long untilTick, boolean strict) {
+		private ForcedContact(BlockPos pos, Direction face, long untilTick) {
+			this(pos, face, untilTick, false);
+		}
+	}
+
+	private static final class LateralArc {
+		private final Vec3d start;
+		private final Vec3d controlOne;
+		private final Vec3d controlTwo;
+		private final Vec3d end;
+		private final BlockPos targetPos;
+		private final Direction targetFace;
+		private final Direction exitTravel;
+		private final double speed;
+		private final int duration;
+		private int step;
+
+		private LateralArc(Vec3d start, Vec3d controlOne, Vec3d controlTwo, Vec3d end,
+				BlockPos targetPos, Direction targetFace, Direction exitTravel, double speed, int duration) {
+			this.start = start;
+			this.controlOne = controlOne;
+			this.controlTwo = controlTwo;
+			this.end = end;
+			this.targetPos = targetPos;
+			this.targetFace = targetFace;
+			this.exitTravel = exitTravel;
+			this.speed = speed;
+			this.duration = duration;
+		}
+	}
+
+	private static final class VerticalWallArc {
+		private final Vec3d start;
+		private final Vec3d controlOne;
+		private final Vec3d controlTwo;
+		private final Vec3d controlThree;
+		private final Vec3d controlFour;
+		private final Vec3d end;
+		private final BlockPos targetPos;
+		private final Direction targetFace;
+		private final Direction exitTravel;
+		private final double speed;
+		private final int duration;
+		private int step;
+
+		private VerticalWallArc(Vec3d start, Vec3d controlOne, Vec3d controlTwo, Vec3d controlThree,
+				Vec3d controlFour, Vec3d end, BlockPos targetPos, Direction targetFace,
+				Direction exitTravel, double speed, int duration) {
+			this.start = start;
+			this.controlOne = controlOne;
+			this.controlTwo = controlTwo;
+			this.controlThree = controlThree;
+			this.controlFour = controlFour;
+			this.end = end;
+			this.targetPos = targetPos;
+			this.targetFace = targetFace;
+			this.exitTravel = exitTravel;
+			this.speed = speed;
+			this.duration = duration;
+		}
 	}
 }

@@ -154,9 +154,41 @@ public final class CarriageClientVisuals {
 	}
 
 	public static Quaternionf attachedRotation(AbstractMinecartEntity cart, Direction face) {
-		return RailPhysics.findContact(cart.getWorld(), cart)
-				.map(contact -> transitionRotation(contact.state(), face))
-				.orElseGet(() -> faceRotation(face));
+		BlockState occupied = cart.getWorld().getBlockState(cart.getBlockPos());
+		Vec3d velocity = cart.getVelocity();
+		if (OmniRailBlock.isOmniRail(occupied)
+				&& OmniRailBlock.face(occupied) == Direction.DOWN
+				&& occupied.get(OmniRailBlock.MANUAL)
+				&& RailPhysics.ascendingDirection(occupied) == null
+				&& velocity.horizontalLengthSquared() > velocity.y * velocity.y) {
+			return faceRotation(Direction.DOWN);
+		}
+		var contact = RailPhysics.findContact(cart.getWorld(), cart);
+		if (contact.isEmpty()) {
+			return faceRotation(face);
+		}
+		Quaternionf lateral = lateralTransitionRotation(cart, contact.get());
+		return lateral != null ? lateral : transitionRotation(contact.get().state(), face);
+	}
+
+	private static Quaternionf lateralTransitionRotation(AbstractMinecartEntity cart, RailPhysics.RailContact contact) {
+		BlockState state = contact.state();
+		var link = OmniRailBlock.findLateralLink(cart.getWorld(), contact.pos(), state);
+		if (link == null) {
+			return null;
+		}
+		Vec3d from = RailPhysics.surfacePoint(contact.pos(), contact.face());
+		Vec3d to = RailPhysics.surfacePoint(link.pos(), link.face());
+		double fromDistance = cart.getPos().distanceTo(from);
+		double toDistance = cart.getPos().distanceTo(to);
+		float progress = (float) (fromDistance / Math.max(1.0E-5D, fromDistance + toDistance));
+		progress = progress * progress * (3.0F - 2.0F * progress);
+		Quaternionf start = faceRotation(contact.face());
+		Quaternionf end = faceRotation(link.face());
+		if (start.dot(end) < 0.0F) {
+			end.set(-end.x, -end.y, -end.z, -end.w);
+		}
+		return start.slerp(end, progress).normalize();
 	}
 
 	public static float floorSlopePitchDegrees(AbstractMinecartEntity cart) {

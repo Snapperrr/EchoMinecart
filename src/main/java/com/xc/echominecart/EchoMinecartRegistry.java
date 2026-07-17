@@ -4,18 +4,21 @@ import com.xc.echominecart.carriage.CarriageManager;
 import com.xc.echominecart.item.BoosterRodItem;
 import com.xc.echominecart.item.MinecartLinkToolItem;
 import com.xc.echominecart.item.RailRepairToolItem;
+import com.xc.echominecart.item.SpeedRailBlockItem;
 import com.xc.echominecart.item.TransportBinderItem;
+import com.xc.echominecart.network.SpeedRailOpenPayload;
 import com.xc.echominecart.trip.TripManager;
 import net.fabricmc.fabric.api.networking.v1.EntityTrackingEvents;
-import com.xc.echominecart.rail.ActivatorOmniRailBlock;
-import com.xc.echominecart.rail.DetectorOmniRailBlock;
 import com.xc.echominecart.rail.OmniRailBlock;
 import com.xc.echominecart.rail.PoweredOmniRailBlock;
 import com.xc.echominecart.rail.RailPhysics;
+import com.xc.echominecart.rail.SpeedRailBlock;
+import com.xc.echominecart.rail.SpeedRailStorage;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.registry.LandPathNodeTypesRegistry;
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.Block;
@@ -34,6 +37,7 @@ import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
@@ -54,12 +58,11 @@ import java.util.Optional;
 public final class EchoMinecartRegistry {
 	public static final Block ECHO_RAIL = registerBlock("echo_rail", new OmniRailBlock(AbstractBlock.Settings.copy(Blocks.RAIL)));
 	public static final Block ECHO_POWERED_RAIL = registerBlock("echo_powered_rail", new PoweredOmniRailBlock(AbstractBlock.Settings.copy(Blocks.POWERED_RAIL)));
-	public static final Block ECHO_DETECTOR_RAIL = registerBlock("echo_detector_rail", new DetectorOmniRailBlock(AbstractBlock.Settings.copy(Blocks.DETECTOR_RAIL)));
-	public static final Block ECHO_ACTIVATOR_RAIL = registerBlock("echo_activator_rail", new ActivatorOmniRailBlock(AbstractBlock.Settings.copy(Blocks.ACTIVATOR_RAIL)));
+	public static final SpeedRailBlock SPEED_RAIL = (SpeedRailBlock) registerBlock(
+			"speed_rail", new SpeedRailBlock(AbstractBlock.Settings.copy(Blocks.DETECTOR_RAIL)));
 	public static final Item ECHO_RAIL_ITEM = registerItem("echo_rail", new BlockItem(ECHO_RAIL, new Item.Settings()));
 	public static final Item ECHO_POWERED_RAIL_ITEM = registerItem("echo_powered_rail", new BlockItem(ECHO_POWERED_RAIL, new Item.Settings()));
-	public static final Item ECHO_DETECTOR_RAIL_ITEM = registerItem("echo_detector_rail", new BlockItem(ECHO_DETECTOR_RAIL, new Item.Settings()));
-	public static final Item ECHO_ACTIVATOR_RAIL_ITEM = registerItem("echo_activator_rail", new BlockItem(ECHO_ACTIVATOR_RAIL, new Item.Settings()));
+	public static final Item SPEED_RAIL_ITEM = registerItem("speed_rail", new SpeedRailBlockItem(SPEED_RAIL, new Item.Settings()));
 	public static final MinecartLinkToolItem MINECART_LINK_TOOL = registerItem("minecart_link_tool", new MinecartLinkToolItem(new Item.Settings().maxCount(1)));
 	public static final TransportBinderItem TRANSPORT_BINDER = registerItem("transport_binder", new TransportBinderItem(new Item.Settings().maxCount(1)));
 	public static final BoosterRodItem BOOSTER_ROD = registerItem("booster_rod", new BoosterRodItem(new Item.Settings().maxCount(1)));
@@ -72,8 +75,7 @@ public final class EchoMinecartRegistry {
 		ItemGroupEvents.modifyEntriesEvent(ItemGroups.REDSTONE).register(entries -> {
 			entries.add(ECHO_RAIL_ITEM);
 			entries.add(ECHO_POWERED_RAIL_ITEM);
-			entries.add(ECHO_DETECTOR_RAIL_ITEM);
-			entries.add(ECHO_ACTIVATOR_RAIL_ITEM);
+			entries.add(SPEED_RAIL_ITEM);
 		});
 		ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> {
 			entries.add(MINECART_LINK_TOOL);
@@ -96,8 +98,6 @@ public final class EchoMinecartRegistry {
 	private static void registerRailPathfinding() {
 		LandPathNodeTypesRegistry.register(ECHO_RAIL, PathNodeType.WALKABLE, PathNodeType.WALKABLE);
 		LandPathNodeTypesRegistry.register(ECHO_POWERED_RAIL, PathNodeType.WALKABLE, PathNodeType.WALKABLE);
-		LandPathNodeTypesRegistry.register(ECHO_DETECTOR_RAIL, PathNodeType.WALKABLE, PathNodeType.WALKABLE);
-		LandPathNodeTypesRegistry.register(ECHO_ACTIVATOR_RAIL, PathNodeType.WALKABLE, PathNodeType.WALKABLE);
 	}
 
 	private static Block registerBlock(String path, Block block) {
@@ -112,6 +112,14 @@ public final class EchoMinecartRegistry {
 
 	private static ActionResult useBlock(PlayerEntity player, World world, Hand hand, BlockHitResult hitResult) {
 		ItemStack stack = player.getStackInHand(hand);
+		BlockState clicked = world.getBlockState(hitResult.getBlockPos());
+		if (hand == Hand.MAIN_HAND && player.isSneaking() && stack.isEmpty() && clicked.isOf(SPEED_RAIL)) {
+			if (world instanceof ServerWorld serverWorld && player instanceof ServerPlayerEntity serverPlayer) {
+				ServerPlayNetworking.send(serverPlayer, new SpeedRailOpenPayload(
+						hitResult.getBlockPos().asLong(), SpeedRailStorage.getSpeed(serverWorld, hitResult.getBlockPos())));
+			}
+			return ActionResult.SUCCESS;
+		}
 		if (stack.getItem() instanceof RailRepairToolItem tool) {
 			ActionResult result = tool.useOnRail(player, world, hitResult);
 			if (result != ActionResult.PASS) {
@@ -122,7 +130,6 @@ public final class EchoMinecartRegistry {
 		if (replacement == null) {
 			return placeMinecartOnAttachedRail(player, world, hitResult, stack);
 		}
-		BlockState clicked = world.getBlockState(hitResult.getBlockPos());
 		BlockPos placePos = clicked.isReplaceable() ? hitResult.getBlockPos() : hitResult.getBlockPos().offset(hitResult.getSide());
 		if (!world.getBlockState(placePos).isReplaceable()) {
 			return ActionResult.PASS;
@@ -131,7 +138,7 @@ public final class EchoMinecartRegistry {
 		if (!OmniRailBlock.canAttachAt(world, placePos, face)) {
 			return ActionResult.FAIL;
 		}
-		boolean redstoneAware = replacement instanceof PoweredOmniRailBlock || replacement instanceof ActivatorOmniRailBlock;
+		boolean redstoneAware = replacement instanceof PoweredOmniRailBlock;
 		BlockState placed = OmniRailBlock.withConnections(world, placePos, replacement.getDefaultState()
 				.with(OmniRailBlock.FACE, face)
 				.with(OmniRailBlock.POWERED, redstoneAware && world.isReceivingRedstonePower(placePos))
@@ -259,12 +266,6 @@ public final class EchoMinecartRegistry {
 		}
 		if (stack.isOf(Items.POWERED_RAIL)) {
 			return ECHO_POWERED_RAIL;
-		}
-		if (stack.isOf(Items.DETECTOR_RAIL)) {
-			return ECHO_DETECTOR_RAIL;
-		}
-		if (stack.isOf(Items.ACTIVATOR_RAIL)) {
-			return ECHO_ACTIVATOR_RAIL;
 		}
 		return null;
 	}

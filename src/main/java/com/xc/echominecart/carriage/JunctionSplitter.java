@@ -32,6 +32,8 @@ import java.util.UUID;
  */
 public final class JunctionSplitter {
 	public static final String RUNNER_TAG = "echominecart_branch_runner";
+	// Kept behind a switch so the experimental branch-stretch implementation can be revisited later.
+	private static final boolean ENABLED = false;
 	private static final int MAX_RUNNERS_PER_GROUP = 6;
 	private static final int MAX_TRAIL_CELLS = 24;
 	private static final int STILL_TICKS_TO_ABSORB = 30;
@@ -45,17 +47,29 @@ public final class JunctionSplitter {
 	private JunctionSplitter() {
 	}
 
+	public static boolean isEnabled() {
+		return ENABLED;
+	}
+
 	public static boolean isRunner(UUID cartId) {
-		return RUNNERS.containsKey(cartId);
+		return ENABLED && RUNNERS.containsKey(cartId);
 	}
 
 	/** 清理已消失矿车的探针注册项（如被 /kill 或区块事故移除的探针）。 */
 	public static void forgetCarts(Set<UUID> liveCartIds) {
+		if (!ENABLED) {
+			RUNNERS.clear();
+			JUNCTION_COOLDOWNS.clear();
+			return;
+		}
 		RUNNERS.keySet().retainAll(liveCartIds);
 	}
 
 	/** 探针 → 母车 的连接关系，供车厢分组的并查集使用。 */
 	public static Map<UUID, UUID> links() {
+		if (!ENABLED) {
+			return Map.of();
+		}
 		Map<UUID, UUID> links = new HashMap<>();
 		for (Map.Entry<UUID, RunnerData> entry : RUNNERS.entrySet()) {
 			links.put(entry.getKey(), entry.getValue().sourceCart);
@@ -65,6 +79,9 @@ public final class JunctionSplitter {
 
 	/** 该组所有探针车走过的轨迹格（树枝形拉伸的来源）。 */
 	public static Set<BlockPos> trailCells(Set<UUID> groupCartIds) {
+		if (!ENABLED) {
+			return Set.of();
+		}
 		Set<BlockPos> cells = new LinkedHashSet<>();
 		for (Map.Entry<UUID, RunnerData> entry : RUNNERS.entrySet()) {
 			if (groupCartIds.contains(entry.getKey())) {
@@ -75,6 +92,9 @@ public final class JunctionSplitter {
 	}
 
 	public static void tickGroup(ServerWorld world, Set<UUID> groupCartIds, List<AbstractMinecartEntity> carts, int serverTick) {
+		if (!ENABLED) {
+			return;
+		}
 		JUNCTION_COOLDOWNS.values().removeIf(expiry -> expiry < serverTick);
 		int groupRunners = countGroupRunners(groupCartIds);
 		for (AbstractMinecartEntity cart : carts) {
@@ -98,7 +118,7 @@ public final class JunctionSplitter {
 			if (entity != null
 					&& entity instanceof AbstractMinecartEntity
 					&& entity.getCommandTags().contains(RUNNER_TAG)
-					&& !RUNNERS.containsKey(entity.getUuid())) {
+					&& (!ENABLED || !RUNNERS.containsKey(entity.getUuid()))) {
 				entity.discard();
 			}
 		}

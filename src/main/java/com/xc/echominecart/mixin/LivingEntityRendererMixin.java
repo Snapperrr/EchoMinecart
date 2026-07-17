@@ -2,12 +2,15 @@ package com.xc.echominecart.mixin;
 
 import com.xc.echominecart.client.CarriageClientVisuals;
 import com.xc.echominecart.client.TripClientVisuals;
+import com.xc.echominecart.rail.RailPhysics;
 import net.minecraft.client.render.entity.LivingEntityRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.RotationAxis;
+import net.minecraft.util.math.Vec3d;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -42,10 +45,29 @@ public abstract class LivingEntityRendererMixin {
 			return;
 		}
 		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-(180.0F - bodyYaw)));
+		if (entity instanceof PlayerEntity && face.getAxis().isHorizontal()) {
+			alignVerticalPassengerRender(entity, minecart, tickDelta, matrices);
+		}
 		if (face == Direction.DOWN) {
 			matrices.translate(0.0F, entity.getHeight(), 0.0F);
 		}
 		matrices.multiply(CarriageClientVisuals.faceRotation(face));
 		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180.0F - bodyYaw));
+	}
+
+	private static void alignVerticalPassengerRender(LivingEntity entity, AbstractMinecartEntity minecart,
+			float tickDelta, MatrixStack matrices) {
+		Vec3d velocity = minecart.getVelocity();
+		if (Math.abs(velocity.y) < 0.04D || Math.abs(velocity.y) < velocity.horizontalLength() * 1.5D) {
+			return;
+		}
+		RailPhysics.passengerAttachmentOffset(minecart).ifPresent(offset -> {
+			Vec3d expected = minecart.getLerpedPos(tickDelta).add(offset);
+			Vec3d correction = expected.subtract(entity.getLerpedPos(tickDelta));
+			if (correction.lengthSquared() > 0.75D * 0.75D) {
+				correction = correction.normalize().multiply(0.75D);
+			}
+			matrices.translate(correction.x, correction.y, correction.z);
+		});
 	}
 }

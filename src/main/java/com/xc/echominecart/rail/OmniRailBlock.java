@@ -1,6 +1,7 @@
 package com.xc.echominecart.rail;
 
 import com.mojang.serialization.MapCodec;
+import com.xc.echominecart.trip.TripManager;
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.AbstractRailBlock;
 import net.minecraft.block.Block;
@@ -9,7 +10,9 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.block.enums.RailShape;
 import net.minecraft.fluid.Fluids;
+import net.minecraft.entity.Entity;
 import net.minecraft.item.ItemPlacementContext;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.state.StateManager;
 import net.minecraft.state.property.BooleanProperty;
 import net.minecraft.state.property.DirectionProperty;
@@ -75,16 +78,22 @@ public class OmniRailBlock extends AbstractRailBlock {
 	private final boolean accelerates;
 	private final boolean redstoneControlled;
 	private final boolean activator;
+	private final boolean tripsMobs;
 
 	public OmniRailBlock(Settings settings) {
-		this(settings, false, false, false);
+		this(settings, false, false, false, true);
 	}
 
 	protected OmniRailBlock(Settings settings, boolean accelerates, boolean redstoneControlled, boolean activator) {
+		this(settings, accelerates, redstoneControlled, activator, true);
+	}
+
+	protected OmniRailBlock(Settings settings, boolean accelerates, boolean redstoneControlled, boolean activator, boolean tripsMobs) {
 		super(false, settings);
 		this.accelerates = accelerates;
 		this.redstoneControlled = redstoneControlled;
 		this.activator = activator;
+		this.tripsMobs = tripsMobs;
 		setDefaultState(getStateManager().getDefaultState()
 				.with(SHAPE, RailShape.NORTH_SOUTH)
 				.with(FACE, Direction.UP)
@@ -186,6 +195,13 @@ public class OmniRailBlock extends AbstractRailBlock {
 	}
 
 	@Override
+	protected void onEntityCollision(BlockState state, World world, BlockPos pos, Entity entity) {
+		if (tripsMobs && world instanceof ServerWorld serverWorld) {
+			TripManager.onRailCollision(serverWorld, pos, entity);
+		}
+	}
+
+	@Override
 	protected VoxelShape getOutlineShape(BlockState state, BlockView world, BlockPos pos, ShapeContext context) {
 		return switch (state.get(FACE)) {
 			case DOWN -> CEILING_SHAPE;
@@ -278,7 +294,7 @@ public class OmniRailBlock extends AbstractRailBlock {
 	}
 
 	/** 查找切线方向 d 上实际连通的铁轨；找不到返回 null。 */
-	public static RailLink findLink(WorldView world, BlockPos pos, Direction face, Direction tangent) {
+	public static RailLink findLink(BlockView world, BlockPos pos, Direction face, Direction tangent) {
 		for (RailLink candidate : linkCandidates(pos, face, tangent)) {
 			BlockState target = world.getBlockState(candidate.pos());
 			if (isOmniRail(target) && face(target) == candidate.face()) {
@@ -639,6 +655,127 @@ public class OmniRailBlock extends AbstractRailBlock {
 		return RailShape.NORTH_SOUTH;
 	}
 
+	public static LateralTransition lateralTransition(BlockView world, BlockPos pos, BlockState state) {
+		LateralTransition forced = forcedLateralTransition(state);
+		if (forced != LateralTransition.NONE) {
+			return forced;
+		}
+		RailLink link = findLateralLink(world, pos, state);
+		if (link == null || state.get(MANUAL)) {
+			return LateralTransition.NONE;
+		}
+		BlockState target = world.getBlockState(link.pos());
+		if (forcedLateralTransition(target) != LateralTransition.NONE) {
+			return LateralTransition.NONE;
+		}
+		if (target.get(MANUAL)) {
+			return transitionDirection(state.get(FACE), link.face());
+		}
+		RailLink reverse = findReverseHorizontalLink(world, link, pos, state.get(FACE), target);
+		return reverse != null && ownsAutomaticLateral(pos, link, reverse)
+				? transitionDirection(state.get(FACE), link.face())
+				: LateralTransition.NONE;
+	}
+
+	public static RailLink findLateralLink(BlockView world, BlockPos pos, BlockState state) {
+		if (!isHorizontalWallRailGeometry(state)) {
+			return null;
+		}
+		Direction face = state.get(FACE);
+		LateralTransition forced = forcedLateralTransition(state);
+		for (Direction tangent : planeTangents(face)) {
+			if (tangent.getAxis().isVertical() || !hasConnection(state, tangent)) {
+				continue;
+			}
+			RailLink link = findLink(world, pos, face, tangent);
+			if (link == null || link.kind() == LinkKind.STRAIGHT
+					|| link.face().getAxis().isVertical() || link.face() == face) {
+				continue;
+			}
+			BlockState target = world.getBlockState(link.pos());
+			if (!isHorizontalWallRailGeometry(target)) {
+				continue;
+			}
+			RailLink reverse = findReverseHorizontalLink(world, link, pos, face, target);
+			if (reverse == null) {
+				continue;
+			}
+			LateralTransition direction = transitionDirection(face, link.face());
+			LateralTransition targetDirection = transitionDirection(link.face(), face);
+			LateralTransition targetForced = forcedLateralTransition(target);
+			if ((forced != LateralTransition.NONE && forced != direction)
+					|| (targetForced != LateralTransition.NONE && targetForced != targetDirection)) {
+				continue;
+			}
+			if (state.get(MANUAL) && forced == LateralTransition.NONE
+					&& target.get(MANUAL) && targetForced == LateralTransition.NONE) {
+				continue;
+			}
+			return link;
+		}
+		return null;
+	}
+
+	/** Wall rails cannot naturally use these corner shapes, so they encode locked lateral direction without a new property. */
+	public static LateralTransition forcedLateralTransition(BlockState state) {
+		if (!isHorizontalWallRailGeometry(state) || !state.get(MANUAL)) {
+			return LateralTransition.NONE;
+		}
+		return switch (state.get(SHAPE)) {
+			case NORTH_EAST -> LateralTransition.CLOCKWISE;
+			case NORTH_WEST -> LateralTransition.COUNTERCLOCKWISE;
+			default -> LateralTransition.NONE;
+		};
+	}
+
+	private static LateralTransition transitionDirection(Direction face, Direction targetFace) {
+		int crossY = face.getOffsetZ() * targetFace.getOffsetX()
+				- face.getOffsetX() * targetFace.getOffsetZ();
+		return crossY >= 0 ? LateralTransition.CLOCKWISE : LateralTransition.COUNTERCLOCKWISE;
+	}
+
+	private static boolean isHorizontalWallRailGeometry(BlockState state) {
+		if (!isOmniRail(state) || state.get(FACE).getAxis().isVertical()
+				|| state.get(UP) || state.get(DOWN) || isAscendingShape(state.get(SHAPE))) {
+			return false;
+		}
+		Direction face = state.get(FACE);
+		return planeTangents(face).stream()
+				.anyMatch(direction -> !direction.getAxis().isVertical() && hasConnection(state, direction));
+	}
+
+	private static RailLink findReverseHorizontalLink(BlockView world, RailLink link, BlockPos sourcePos,
+			Direction sourceFace, BlockState target) {
+		for (Direction tangent : planeTangents(link.face())) {
+			if (tangent.getAxis().isVertical() || !hasConnection(target, tangent)) {
+				continue;
+			}
+			RailLink reverse = findLink(world, link.pos(), link.face(), tangent);
+			if (reverse != null && reverse.pos().equals(sourcePos) && reverse.face() == sourceFace) {
+				return reverse;
+			}
+		}
+		return null;
+	}
+
+	private static boolean ownsAutomaticLateral(BlockPos pos, RailLink link, RailLink reverse) {
+		// Prefer the inner-corner endpoint; symmetric pairs use a stable position order so exactly one block renders curved.
+		if (link.kind() != reverse.kind()) {
+			return link.kind() == LinkKind.INNER_CORNER;
+		}
+		int y = Integer.compare(pos.getY(), link.pos().getY());
+		if (y != 0) {
+			return y < 0;
+		}
+		int x = Integer.compare(pos.getX(), link.pos().getX());
+		return x != 0 ? x < 0 : pos.getZ() < link.pos().getZ();
+	}
+
+	private static boolean hasConnection(BlockState state, Direction direction) {
+		BooleanProperty property = CONNECTION_PROPERTIES.get(direction);
+		return property != null && state.get(property);
+	}
+
 	private static BlockState refreshedState(WorldAccess world, BlockPos pos, BlockState state) {
 		BlockState connected = withConnections(world, pos, state);
 		if (connected.getBlock() instanceof OmniRailBlock rail) {
@@ -724,7 +861,14 @@ public class OmniRailBlock extends AbstractRailBlock {
 	public enum LinkKind {
 		STRAIGHT,
 		INNER_CORNER,
-		OUTER_CORNER
+		OUTER_CORNER,
+		VERTICAL_WALL_HANDOFF
+	}
+
+	public enum LateralTransition {
+		NONE,
+		CLOCKWISE,
+		COUNTERCLOCKWISE
 	}
 
 	public record RailLink(BlockPos pos, Direction face, LinkKind kind) {

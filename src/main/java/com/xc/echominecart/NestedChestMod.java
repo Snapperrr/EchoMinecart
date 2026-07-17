@@ -3,13 +3,17 @@ package com.xc.echominecart;
 import com.mojang.logging.LogUtils;
 import com.xc.echominecart.EchoMinecartRegistry;
 import com.xc.echominecart.debug.NestedChestDebugCommands;
+import com.xc.echominecart.haul.HaulManager;
 import com.xc.echominecart.network.CarriageSyncPayload;
 import com.xc.echominecart.network.NestedChestClickPayload;
 import com.xc.echominecart.network.NestedChestOpenPayload;
 import com.xc.echominecart.network.NestedChestRenamePayload;
 import com.xc.echominecart.network.NestedChestSortPayload;
 import com.xc.echominecart.network.NestedChestSyncPayload;
+import com.xc.echominecart.network.SpeedRailOpenPayload;
+import com.xc.echominecart.network.SpeedRailSetPayload;
 import com.xc.echominecart.network.TripSyncPayload;
+import com.xc.echominecart.rail.SpeedRailStorage;
 import com.xc.echominecart.screen.ConnectedChestScreenHandler;
 import com.xc.echominecart.storage.NestedChestStorage;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -37,6 +41,7 @@ import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.ItemScatterer;
 import net.minecraft.util.collection.DefaultedList;
@@ -83,12 +88,18 @@ public class NestedChestMod implements ModInitializer {
 		PayloadTypeRegistry.playS2C().register(NestedChestSyncPayload.ID, NestedChestSyncPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(CarriageSyncPayload.ID, CarriageSyncPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(TripSyncPayload.ID, TripSyncPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(SpeedRailOpenPayload.ID, SpeedRailOpenPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(SpeedRailSetPayload.ID, SpeedRailSetPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(NestedChestClickPayload.ID, NestedChestMod::receiveNestedClick);
 		ServerPlayNetworking.registerGlobalReceiver(NestedChestOpenPayload.ID, NestedChestMod::receiveNestedOpen);
 		ServerPlayNetworking.registerGlobalReceiver(NestedChestRenamePayload.ID, NestedChestMod::receiveNestedRename);
 		ServerPlayNetworking.registerGlobalReceiver(NestedChestSortPayload.ID, NestedChestMod::receiveNestedSort);
+		ServerPlayNetworking.registerGlobalReceiver(SpeedRailSetPayload.ID, NestedChestMod::receiveSpeedRailSet);
 		ServerTickEvents.END_SERVER_TICK.register(NestedChestMod::checkpointStorage);
-		ServerLifecycleEvents.SERVER_STOPPING.register(server -> NestedChestStorage.closeAll());
+		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+			HaulManager.onServerStopping(server);
+			NestedChestStorage.closeAll();
+		});
 		NestedChestDebugCommands.register();
 		EchoMinecartRegistry.register();
 	}
@@ -107,6 +118,21 @@ public class NestedChestMod implements ModInitializer {
 
 	private static void receiveNestedSort(NestedChestSortPayload payload, ServerPlayNetworking.Context context) {
 		context.server().execute(() -> applyNestedSort(payload, context.player()));
+	}
+
+	private static void receiveSpeedRailSet(SpeedRailSetPayload payload, ServerPlayNetworking.Context context) {
+		context.server().execute(() -> {
+			ServerPlayerEntity player = context.player();
+			BlockPos pos = BlockPos.fromLong(payload.pos());
+			if (player.getPos().squaredDistanceTo(pos.toCenterPos()) > 64.0D) {
+				return;
+			}
+			ServerWorld world = player.getServerWorld();
+			if (!world.getBlockState(pos).isOf(EchoMinecartRegistry.SPEED_RAIL)) {
+				return;
+			}
+			SpeedRailStorage.setSpeed(world, pos, payload.speed());
+		});
 	}
 
 	private static void checkpointStorage(MinecraftServer server) {

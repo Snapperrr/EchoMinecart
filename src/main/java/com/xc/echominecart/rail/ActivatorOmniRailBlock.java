@@ -8,7 +8,7 @@ public final class ActivatorOmniRailBlock extends OmniRailBlock {
 	public static final MapCodec<ActivatorOmniRailBlock> CODEC = AbstractBlock.createCodec(ActivatorOmniRailBlock::new);
 
 	public ActivatorOmniRailBlock(Settings settings) {
-		super(settings, false, true, true);
+		super(settings, false, true, true, false);
 	}
 
 	@Override

@@ -1,6 +1,7 @@
 {
 	"block.echominecart.echo_rail": "回声铁轨",
 	"block.echominecart.echo_powered_rail": "回声充能铁轨",
+	"block.echominecart.speed_rail": "加速铁轨",
 	"block.echominecart.echo_detector_rail": "回声探测铁轨",
 	"block.echominecart.echo_activator_rail": "回声激活铁轨",
 	"item.echominecart.minecart_link_tool": "矿车拆分/合并工具",
@@ -15,5 +16,11 @@
 	"screen.echominecart.settings.hint": "行驶效果会实时生效并自动保存。",
 	"option.echominecart.minecart_fov_strength": "矿车 FOV 强度",
 	"option.echominecart.minecart_sway_strength": "矿车颠簸强度",
-	"option.echominecart.percent_value": "%s：%s"
+	"option.echominecart.percent_value": "%s：%s",
+	"screen.echominecart.speed_rail": "加速铁轨",
+	"option.echominecart.speed_rail_speed": "速度（格/刻）",
+	"option.echominecart.speed_rail_range": "允许范围：-%s 至 %s",
+	"button.echominecart.speed_rail_apply": "应用",
+	"error.echominecart.speed_rail_number": "请输入有效数字。",
+	"error.echominecart.speed_rail_range": "数值超出允许范围。"
 }

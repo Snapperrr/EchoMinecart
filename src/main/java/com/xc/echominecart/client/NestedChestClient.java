@@ -4,8 +4,10 @@ import com.xc.echominecart.EchoMinecartRegistry;
 import com.xc.echominecart.NestedChestMod;
 import com.xc.echominecart.client.screen.ConnectedChestScreen;
 import com.xc.echominecart.client.screen.EchoMinecartSettingsScreen;
+import com.xc.echominecart.client.screen.SpeedRailSettingsScreen;
 import com.xc.echominecart.network.CarriageSyncPayload;
 import com.xc.echominecart.network.NestedChestSyncPayload;
+import com.xc.echominecart.network.SpeedRailOpenPayload;
 import com.xc.echominecart.network.TripSyncPayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
@@ -21,6 +23,7 @@ import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.BlockPos;
 import org.lwjgl.glfw.GLFW;
 
 public class NestedChestClient implements ClientModInitializer {
@@ -29,13 +32,13 @@ public class NestedChestClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		NestedChestClientConfig.initialize();
+		LateralRailModelLoader.initialize();
 		registerSettingsControls();
 		BlockRenderLayerMap.INSTANCE.putBlocks(
 				RenderLayer.getCutout(),
 				EchoMinecartRegistry.ECHO_RAIL,
 				EchoMinecartRegistry.ECHO_POWERED_RAIL,
-				EchoMinecartRegistry.ECHO_DETECTOR_RAIL,
-				EchoMinecartRegistry.ECHO_ACTIVATOR_RAIL);
+				EchoMinecartRegistry.SPEED_RAIL);
 		HandledScreens.register(NestedChestMod.CONNECTED_CHEST_SCREEN_HANDLER, ConnectedChestScreen::new);
 		ClientPlayNetworking.registerGlobalReceiver(NestedChestSyncPayload.ID, (payload, context) ->
 				context.client().execute(() -> NestedChestOverlay.sync(payload.path(), payload.stacks())));
@@ -47,6 +50,9 @@ public class NestedChestClient implements ClientModInitializer {
 				}));
 		ClientPlayNetworking.registerGlobalReceiver(TripSyncPayload.ID, (payload, context) ->
 				context.client().execute(() -> TripClientVisuals.update(payload.entityId(), payload.tripped(), payload.yaw())));
+		ClientPlayNetworking.registerGlobalReceiver(SpeedRailOpenPayload.ID, (payload, context) ->
+				context.client().execute(() -> context.client().setScreen(new SpeedRailSettingsScreen(
+						context.client().currentScreen, BlockPos.fromLong(payload.pos()), payload.speed()))));
 	}
 
 	private static void registerSettingsControls() {

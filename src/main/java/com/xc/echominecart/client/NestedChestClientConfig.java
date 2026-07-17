@@ -36,9 +36,9 @@ public final class NestedChestClientConfig {
 	public static final double DEFAULT_MINECART_FOV_STRENGTH = 1.45D;
 	public static final double DEFAULT_MINECART_SWAY_STRENGTH = 1.0D;
 	public static final double MIN_MINECART_FOV_STRENGTH = 0.0D;
-	public static final double MAX_MINECART_FOV_STRENGTH = 3.0D;
+	public static final double MAX_MINECART_FOV_STRENGTH = 5.0D;
 	public static final double MIN_MINECART_SWAY_STRENGTH = 0.0D;
-	public static final double MAX_MINECART_SWAY_STRENGTH = 2.5D;
+	public static final double MAX_MINECART_SWAY_STRENGTH = 5.0D;
 
 	private static BackgroundMode backgroundMode = BackgroundMode.FIT;
 	private static String configuredBackgroundImage = "";

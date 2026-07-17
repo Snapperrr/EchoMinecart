@@ -98,7 +98,9 @@ public final class CarriageManager {
 			GROUPS.putAll(rebuilt);
 			TripManager.tick(world, serverTick);
 			if (serverTick % 100 == 0) {
-				JunctionSplitter.purgeOrphans(world);
+				if (JunctionSplitter.isEnabled()) {
+					JunctionSplitter.purgeOrphans(world);
+				}
 				purgeOrphanChestDisplays(world);
 			}
 			List<GroupSnapshot> snapshots = new ArrayList<>();
@@ -110,7 +112,9 @@ public final class CarriageManager {
 		}
 		// 跨维度统一清理，避免逐世界 retainAll 误删其他维度矿车的状态。
 		RailPhysics.forgetCarts(liveCartIds);
-		JunctionSplitter.forgetCarts(liveCartIds);
+		if (JunctionSplitter.isEnabled()) {
+			JunctionSplitter.forgetCarts(liveCartIds);
+		}
 		if (serverTick % 100 == 0) {
 			for (UUID anchorId : List.copyOf(CHEST_DISPLAYS.keySet())) {
 				if (!liveCartIds.contains(anchorId)) {
@@ -127,10 +131,14 @@ public final class CarriageManager {
 		if (carts.isEmpty() || group.shape == null) {
 			return;
 		}
-		updateJunctionStretch(world, carts);
+		if (JunctionSplitter.isEnabled()) {
+			updateJunctionStretch(world, carts);
+		}
 		syncExpandedMotion(group, carts);
 		updateModules(group, carts);
-		JunctionSplitter.tickGroup(world, group.carts, carts, serverTick);
+		if (JunctionSplitter.isEnabled()) {
+			JunctionSplitter.tickGroup(world, group.carts, carts, serverTick);
+		}
 		syncShapeToClients(group, carts);
 		updateChestDisplays(world, group, carts);
 		consolidatePassengers(group, carts);
@@ -381,11 +389,13 @@ public final class CarriageManager {
 			parent.put(cart.getUuid(), cart.getUuid());
 		}
 		// 分支探针始终归属母车所在的组。
-		JunctionSplitter.links().forEach((runner, source) -> {
-			if (parent.containsKey(runner) && parent.containsKey(source)) {
-				union(parent, source, runner);
-			}
-		});
+		if (JunctionSplitter.isEnabled()) {
+			JunctionSplitter.links().forEach((runner, source) -> {
+				if (parent.containsKey(runner) && parent.containsKey(source)) {
+					union(parent, source, runner);
+				}
+			});
+		}
 		// 只认工具建立的手动链接，矿车不再因靠近自动合并。
 		for (CartPair pair : MANUAL_LINKS) {
 			if (parent.containsKey(pair.left()) && parent.containsKey(pair.right())) {
@@ -457,15 +467,19 @@ public final class CarriageManager {
 				continue;
 			}
 			cells.add(moduleCell(anchor, cart, carts.size() > 1, cells));
-			railPosNear(group.world, cart.getBlockPos()).ifPresent(rail -> {
-				if (CartAttachment.of(cart).junctionStretchTicks > 0 && isJunction(group.world, rail)) {
-					cells.add(rail);
-					cells.addAll(railNeighbors(group.world, rail));
-				}
-			});
+			if (JunctionSplitter.isEnabled()) {
+				railPosNear(group.world, cart.getBlockPos()).ifPresent(rail -> {
+					if (CartAttachment.of(cart).junctionStretchTicks > 0 && isJunction(group.world, rail)) {
+						cells.add(rail);
+						cells.addAll(railNeighbors(group.world, rail));
+					}
+				});
+			}
 		}
 		// 分支探针的轨迹格：车体沿每条分支像树枝一样拉伸。
-		cells.addAll(JunctionSplitter.trailCells(group.carts));
+		if (JunctionSplitter.isEnabled()) {
+			cells.addAll(JunctionSplitter.trailCells(group.carts));
+		}
 		if (cells.isEmpty()) {
 			cells.add(anchor.getBlockPos());
 		}

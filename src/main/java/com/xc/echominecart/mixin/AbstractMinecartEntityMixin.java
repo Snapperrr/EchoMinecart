@@ -3,6 +3,7 @@ package com.xc.echominecart.mixin;
 import com.xc.echominecart.carriage.CarriageManager;
 import com.xc.echominecart.rail.OmniRailBlock;
 import com.xc.echominecart.rail.RailPhysics;
+import com.xc.echominecart.rail.SpeedRailRuntime;
 import net.minecraft.block.BlockState;
 import net.minecraft.util.math.Direction;
 import net.minecraft.entity.Entity;
@@ -42,7 +43,20 @@ public abstract class AbstractMinecartEntityMixin {
 		AbstractMinecartEntity cart = (AbstractMinecartEntity) (Object) this;
 		if (RailPhysics.isControlled(cart) || CarriageManager.isSuppressedModule(cart)) {
 			ci.cancel();
+			return;
 		}
+		SpeedRailRuntime.beforeMoveOnRail(cart, pos, state);
+	}
+
+	@Inject(method = "moveOnRail", at = @At("TAIL"))
+	private void echominecart$finishSpeedRailMove(BlockPos pos, BlockState state, CallbackInfo ci) {
+		SpeedRailRuntime.afterMoveOnRail((AbstractMinecartEntity) (Object) this, pos, state);
+	}
+
+	@Inject(method = "getMaxSpeed", at = @At("RETURN"), cancellable = true)
+	private void echominecart$allowConfiguredSpeed(CallbackInfoReturnable<Double> cir) {
+		AbstractMinecartEntity cart = (AbstractMinecartEntity) (Object) this;
+		cir.setReturnValue(SpeedRailRuntime.maxSpeed(cart, cir.getReturnValue()));
 	}
 
 	/**

@@ -25,7 +25,7 @@ public final class DetectorOmniRailBlock extends OmniRailBlock {
 	private static final int DETECTOR_DELAY = 20;
 
 	public DetectorOmniRailBlock(Settings settings) {
-		super(settings, false, false, false);
+		super(settings, false, false, false, false);
 	}
 
 	@Override
@@ -40,6 +40,7 @@ public final class DetectorOmniRailBlock extends OmniRailBlock {
 
 	@Override
 	protected void onEntityCollision(BlockState state, World world, BlockPos pos, Entity entity) {
+		super.onEntityCollision(state, world, pos, entity);
 		if (!world.isClient() && entity instanceof AbstractMinecartEntity) {
 			updatePoweredStatus(world, pos, state);
 		}

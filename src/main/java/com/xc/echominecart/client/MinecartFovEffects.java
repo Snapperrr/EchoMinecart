@@ -21,7 +21,7 @@ public final class MinecartFovEffects {
 	private static final double POWERED_DESCENT_BASE = 0.17D;
 	private static final double VERTICAL_DESCENT_BASE = 0.205D;
 	private static final double MAX_TOTAL_BOOST = 0.255D;
-	private static final double MAX_CONFIGURED_BOOST = 0.75D;
+	private static final double MAX_CONFIGURED_BOOST = 1.25D;
 	private static final double RISE_SMOOTHING_RATE = 3.25D;
 	private static final double FALL_SMOOTHING_RATE = 5.0D;
 	private static final long STATE_CHANGE_RESET_NANOS = 320_000_000L;
