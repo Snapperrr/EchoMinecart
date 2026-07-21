@@ -15,6 +15,7 @@ import java.util.List;
  * （BlockPos.asLong 列表）发给正在追踪该实体的客户端，
  * 客户端据此渲染拉伸后的车体，不再自行推断。
  */
+/** Server-to-client render snapshot for one carriage anchor and its occupied cells. */
 public record CarriageSyncPayload(int anchorId, long anchorCell, List<Long> cells, int chestCount) implements CustomPayload {
 	public static final Id<CarriageSyncPayload> ID = new Id<>(Identifier.of(NestedChestMod.MOD_ID, "carriage_sync"));
 	private static final PacketCodec<ByteBuf, List<Long>> CELLS_CODEC = PacketCodecs.VAR_LONG

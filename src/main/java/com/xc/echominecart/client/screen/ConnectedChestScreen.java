@@ -7,6 +7,7 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
+/** Scrollable client view for the logical inventory of a connected chest group. */
 public class ConnectedChestScreen extends HandledScreen<ConnectedChestScreenHandler> {
 	private static final Identifier TEXTURE = Identifier.ofVanilla("textures/gui/container/generic_54.png");
 	private static final int SCROLLBAR_X = 174;

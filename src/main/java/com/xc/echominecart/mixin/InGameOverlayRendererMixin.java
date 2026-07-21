@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/** Suppresses false in-wall overlays while a corrected minecart passenger camera is active. */
 @Mixin(InGameOverlayRenderer.class)
 public abstract class InGameOverlayRendererMixin {
 	@Inject(method = "getInWallBlockState", at = @At("HEAD"), cancellable = true)

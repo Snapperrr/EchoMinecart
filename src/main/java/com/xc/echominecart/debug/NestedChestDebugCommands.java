@@ -24,6 +24,7 @@ import java.util.List;
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
+/** Registers operator commands that inspect nested-storage trees without mutating gameplay state. */
 public final class NestedChestDebugCommands {
 	private static final int DEFAULT_PAGES = WritableBookContentComponent.MAX_PAGE_COUNT;
 	private static final int DEFAULT_CHARS_PER_PAGE = WritableBookContentComponent.MAX_PAGE_LENGTH;

@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /** 客户端绊倒状态表：entityId → 趴倒朝向；由 TripSyncPayload 维护。 */
+/** Holds expiring client pose snapshots for entities pinned to rails. */
 public final class TripClientVisuals {
 	private static final Map<Integer, Float> TRIPPED_YAW = new HashMap<>();
 

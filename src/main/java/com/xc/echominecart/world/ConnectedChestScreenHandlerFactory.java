@@ -8,6 +8,7 @@ import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 
+/** Revalidates a connected chest group and creates its server-side menu. */
 public class ConnectedChestScreenHandlerFactory implements ExtendedScreenHandlerFactory<Integer> {
 	private final ConnectedChestInventory inventory;
 

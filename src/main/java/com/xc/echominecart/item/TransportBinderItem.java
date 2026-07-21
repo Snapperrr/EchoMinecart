@@ -13,6 +13,7 @@ import net.minecraft.world.World;
  * 搬运绑定工具：潜行右键矿车，把整节车厢上方的方块列和实体绑定成货物。
  * 车厢开动后货物随车移动，停稳且放置条件满足时原样放回。
  */
+/** Selects a structure and binds the captured haul to a minecart or carriage group. */
 public final class TransportBinderItem extends Item {
 	public TransportBinderItem(Settings settings) {
 		super(settings);

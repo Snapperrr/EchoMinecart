@@ -25,6 +25,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/** Redirects chest grouping and drop behavior to connected/nested chest services. */
 @Mixin(ChestBlock.class)
 public abstract class ChestBlockMixin {
 	@Inject(method = "onStateReplaced", at = @At("HEAD"), cancellable = true)

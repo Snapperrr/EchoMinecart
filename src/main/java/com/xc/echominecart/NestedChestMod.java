@@ -13,8 +13,14 @@ import com.xc.echominecart.network.NestedChestSyncPayload;
 import com.xc.echominecart.network.SpeedRailOpenPayload;
 import com.xc.echominecart.network.SpeedRailSetPayload;
 import com.xc.echominecart.network.TripSyncPayload;
+import com.xc.echominecart.network.RingVehicleActionPayload;
+import com.xc.echominecart.network.RingVehicleAbilityPayload;
+import com.xc.echominecart.network.RingVehicleControlPayload;
+import com.xc.echominecart.network.RingVehicleMiningPayload;
 import com.xc.echominecart.rail.SpeedRailStorage;
+import com.xc.echominecart.ringvehicle.RingVehicleEntity;
 import com.xc.echominecart.screen.ConnectedChestScreenHandler;
+import com.xc.echominecart.screen.RingVehicleScreenHandler;
 import com.xc.echominecart.storage.NestedChestStorage;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -46,6 +52,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.ItemScatterer;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import org.slf4j.Logger;
 
@@ -58,6 +65,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * Common entry point and authoritative nested-container transaction service.
+ *
+ * <p>Client requests carry slot-index paths, but every path is re-resolved against the current
+ * server ScreenHandler before mutation. Nested clicks run through temporary vanilla handlers so
+ * pickup, quick-craft, and cursor-stack behavior retain vanilla semantics. Changed pages are then
+ * written from leaf to root to keep SQLite pages and ItemStack references coherent.</p>
+ */
 public class NestedChestMod implements ModInitializer {
 	private static final Logger LOGGER = LogUtils.getLogger();
 	public static final String MOD_ID = "echominecart";
@@ -66,6 +81,12 @@ public class NestedChestMod implements ModInitializer {
 			MOD_ID + ":connected_chest",
 			new ExtendedScreenHandlerType<>(ConnectedChestScreenHandler::new, PacketCodecs.VAR_INT)
 	);
+	public static final ScreenHandlerType<RingVehicleScreenHandler> RING_VEHICLE_SCREEN_HANDLER = Registry.register(
+			Registries.SCREEN_HANDLER,
+			MOD_ID + ":ring_vehicle",
+			new ExtendedScreenHandlerType<>(RingVehicleScreenHandler::new, PacketCodecs.VAR_INT)
+	);
+	// Protocol and storage invariants shared by the overlay and server resolver.
 	public static final int NESTED_CHEST_SIZE = 27;
 	public static final int DOUBLE_NESTED_CHEST_SIZE = 54;
 	public static final int MAX_NESTED_CHEST_SIZE = DOUBLE_NESTED_CHEST_SIZE;
@@ -90,11 +111,19 @@ public class NestedChestMod implements ModInitializer {
 		PayloadTypeRegistry.playS2C().register(TripSyncPayload.ID, TripSyncPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(SpeedRailOpenPayload.ID, SpeedRailOpenPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(SpeedRailSetPayload.ID, SpeedRailSetPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(RingVehicleActionPayload.ID, RingVehicleActionPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(RingVehicleAbilityPayload.ID, RingVehicleAbilityPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(RingVehicleControlPayload.ID, RingVehicleControlPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(RingVehicleMiningPayload.ID, RingVehicleMiningPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(NestedChestClickPayload.ID, NestedChestMod::receiveNestedClick);
 		ServerPlayNetworking.registerGlobalReceiver(NestedChestOpenPayload.ID, NestedChestMod::receiveNestedOpen);
 		ServerPlayNetworking.registerGlobalReceiver(NestedChestRenamePayload.ID, NestedChestMod::receiveNestedRename);
 		ServerPlayNetworking.registerGlobalReceiver(NestedChestSortPayload.ID, NestedChestMod::receiveNestedSort);
 		ServerPlayNetworking.registerGlobalReceiver(SpeedRailSetPayload.ID, NestedChestMod::receiveSpeedRailSet);
+		ServerPlayNetworking.registerGlobalReceiver(RingVehicleActionPayload.ID, NestedChestMod::receiveRingVehicleAction);
+		ServerPlayNetworking.registerGlobalReceiver(RingVehicleAbilityPayload.ID, NestedChestMod::receiveRingVehicleAbility);
+		ServerPlayNetworking.registerGlobalReceiver(RingVehicleControlPayload.ID, NestedChestMod::receiveRingVehicleControl);
+		ServerPlayNetworking.registerGlobalReceiver(RingVehicleMiningPayload.ID, NestedChestMod::receiveRingVehicleMining);
 		ServerTickEvents.END_SERVER_TICK.register(NestedChestMod::checkpointStorage);
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
 			HaulManager.onServerStopping(server);
@@ -102,6 +131,62 @@ public class NestedChestMod implements ModInitializer {
 		});
 		NestedChestDebugCommands.register();
 		EchoMinecartRegistry.register();
+	}
+
+	private static void receiveRingVehicleAction(RingVehicleActionPayload payload, ServerPlayNetworking.Context context) {
+		context.server().execute(() -> {
+			ServerPlayerEntity player = context.player();
+			if (!(player.getServerWorld().getEntityById(payload.entityId()) instanceof RingVehicleEntity vehicle)
+					|| player.getVehicle() != vehicle) {
+				return;
+			}
+			if (payload.action() == RingVehicleActionPayload.TOGGLE_GEAR) {
+				vehicle.toggleGear(player);
+			} else if (payload.action() == RingVehicleActionPayload.OPEN_INVENTORY) {
+				vehicle.openInventory(player);
+			} else if (payload.action() == RingVehicleActionPayload.TOGGLE_MINING) {
+				vehicle.toggleMiningMode(player);
+			}
+		});
+	}
+
+	private static void receiveRingVehicleAbility(RingVehicleAbilityPayload payload, ServerPlayNetworking.Context context) {
+		context.server().execute(() -> {
+			ServerPlayerEntity player = context.player();
+			if (!(player.getServerWorld().getEntityById(payload.entityId()) instanceof RingVehicleEntity vehicle)
+					|| player.getVehicle() != vehicle) {
+				return;
+			}
+			if (payload.ability() == RingVehicleAbilityPayload.JUMP) {
+				vehicle.queueJump(payload.value());
+			} else if (payload.ability() == RingVehicleAbilityPayload.DASH) {
+				vehicle.queueDash(payload.value());
+			} else if (payload.ability() == RingVehicleAbilityPayload.SMASH) {
+				vehicle.queueSmash(payload.value());
+			}
+		});
+	}
+
+	private static void receiveRingVehicleControl(RingVehicleControlPayload payload, ServerPlayNetworking.Context context) {
+		context.server().execute(() -> {
+			ServerPlayerEntity player = context.player();
+			if (!(player.getServerWorld().getEntityById(payload.entityId()) instanceof RingVehicleEntity vehicle)
+					|| player.getVehicle() != vehicle) {
+				return;
+			}
+			vehicle.acceptControlInput(payload.throttle(), payload.steering(), payload.clutchHeld());
+		});
+	}
+
+	private static void receiveRingVehicleMining(RingVehicleMiningPayload payload, ServerPlayNetworking.Context context) {
+		context.server().execute(() -> {
+			ServerPlayerEntity player = context.player();
+			if (!(player.getServerWorld().getEntityById(payload.entityId()) instanceof RingVehicleEntity vehicle)
+					|| player.getVehicle() != vehicle) {
+				return;
+			}
+			vehicle.acceptMiningInput(payload.active(), new Vec3d(payload.aimX(), payload.aimY(), payload.aimZ()));
+		});
 	}
 
 	private static void receiveNestedClick(NestedChestClickPayload payload, ServerPlayNetworking.Context context) {

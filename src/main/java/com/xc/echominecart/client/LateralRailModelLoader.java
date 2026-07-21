@@ -19,6 +19,7 @@ import net.minecraft.world.BlockRenderView;
 import java.util.function.Supplier;
 
 /** Selects the lateral wall-corner model from live rail geometry without adding block states. */
+/** Wraps omni-rail baked models to apply locked lateral-transition transforms at render time. */
 public final class LateralRailModelLoader {
 	private static final Identifier RAIL_BLOCK = id("echo_rail");
 	private static final Identifier POWERED_RAIL_BLOCK = id("echo_powered_rail");

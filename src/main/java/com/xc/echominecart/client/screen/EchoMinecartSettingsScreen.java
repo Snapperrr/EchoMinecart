@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
 
+/** Edits ordinary minecart FOV and ride-bob settings with sliders and numeric fields. */
 public class EchoMinecartSettingsScreen extends Screen {
 	private final Screen parent;
 

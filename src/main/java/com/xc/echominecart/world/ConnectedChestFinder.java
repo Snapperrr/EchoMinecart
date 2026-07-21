@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 
+/** Flood-fills physically connected chest blocks with a strict size bound. */
 public final class ConnectedChestFinder {
 	public static final int MAX_CONNECTED_CHESTS = 4096;
 

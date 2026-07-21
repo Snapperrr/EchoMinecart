@@ -24,6 +24,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 
+/**
+ * Client-only properties store and dynamic background texture loader.
+ * Numeric accessors clamp persisted values so hand-edited files cannot destabilize rendering.
+ */
 public final class NestedChestClientConfig {
 	private static final Logger LOGGER = LogUtils.getLogger();
 	private static final String CONFIG_FILE_NAME = "echominecart-client.properties";
@@ -32,6 +36,8 @@ public final class NestedChestClientConfig {
 	private static final String BACKGROUND_IMAGE_KEY = "background_image";
 	private static final String MINECART_FOV_STRENGTH_KEY = "minecart_fov_strength";
 	private static final String MINECART_SWAY_STRENGTH_KEY = "minecart_sway_strength";
+	private static final String RING_VEHICLE_STEERING_SENSITIVITY_KEY = "ring_vehicle_steering_sensitivity";
+	private static final String RING_VEHICLE_FOV_STRENGTH_KEY = "ring_vehicle_fov_strength";
 	private static final long IMAGE_RESCAN_INTERVAL_MS = 1000L;
 	public static final double DEFAULT_MINECART_FOV_STRENGTH = 1.45D;
 	public static final double DEFAULT_MINECART_SWAY_STRENGTH = 1.0D;
@@ -39,11 +45,19 @@ public final class NestedChestClientConfig {
 	public static final double MAX_MINECART_FOV_STRENGTH = 5.0D;
 	public static final double MIN_MINECART_SWAY_STRENGTH = 0.0D;
 	public static final double MAX_MINECART_SWAY_STRENGTH = 5.0D;
+	public static final double DEFAULT_RING_VEHICLE_STEERING_SENSITIVITY = 1.0D;
+	public static final double MIN_RING_VEHICLE_STEERING_SENSITIVITY = 0.25D;
+	public static final double MAX_RING_VEHICLE_STEERING_SENSITIVITY = 3.0D;
+	public static final double DEFAULT_RING_VEHICLE_FOV_STRENGTH = 1.45D;
+	public static final double MIN_RING_VEHICLE_FOV_STRENGTH = 0.0D;
+	public static final double MAX_RING_VEHICLE_FOV_STRENGTH = 5.0D;
 
 	private static BackgroundMode backgroundMode = BackgroundMode.FIT;
 	private static String configuredBackgroundImage = "";
 	private static double minecartFovStrength = DEFAULT_MINECART_FOV_STRENGTH;
 	private static double minecartSwayStrength = DEFAULT_MINECART_SWAY_STRENGTH;
+	private static double ringVehicleSteeringSensitivity = DEFAULT_RING_VEHICLE_STEERING_SENSITIVITY;
+	private static double ringVehicleFovStrength = DEFAULT_RING_VEHICLE_FOV_STRENGTH;
 	private static LoadedBackground loadedBackground;
 	private static Path loadedPath;
 	private static long loadedModifiedTime;
@@ -102,6 +116,32 @@ public final class NestedChestClientConfig {
 		save();
 	}
 
+	public static double ringVehicleSteeringSensitivity() {
+		return ringVehicleSteeringSensitivity;
+	}
+
+	public static void setRingVehicleSteeringSensitivity(double sensitivity) {
+		ringVehicleSteeringSensitivity = clamp(sensitivity,
+				MIN_RING_VEHICLE_STEERING_SENSITIVITY, MAX_RING_VEHICLE_STEERING_SENSITIVITY);
+		save();
+	}
+
+	public static double ringVehicleFovStrength() {
+		return ringVehicleFovStrength;
+	}
+
+	public static void setRingVehicleFovStrength(double strength) {
+		ringVehicleFovStrength = clamp(strength,
+				MIN_RING_VEHICLE_FOV_STRENGTH, MAX_RING_VEHICLE_FOV_STRENGTH);
+		save();
+	}
+
+	public static void resetRingVehicleSettings() {
+		ringVehicleSteeringSensitivity = DEFAULT_RING_VEHICLE_STEERING_SENSITIVITY;
+		ringVehicleFovStrength = DEFAULT_RING_VEHICLE_FOV_STRENGTH;
+		save();
+	}
+
 	public static Path backgroundDirectory() {
 		return configDirectory().resolve(NestedChestMod.MOD_ID).resolve(BACKGROUND_DIR_NAME);
 	}
@@ -138,6 +178,12 @@ public final class NestedChestClientConfig {
 				MIN_MINECART_FOV_STRENGTH, MAX_MINECART_FOV_STRENGTH);
 		minecartSwayStrength = readDouble(properties, MINECART_SWAY_STRENGTH_KEY, DEFAULT_MINECART_SWAY_STRENGTH,
 				MIN_MINECART_SWAY_STRENGTH, MAX_MINECART_SWAY_STRENGTH);
+		ringVehicleSteeringSensitivity = readDouble(properties, RING_VEHICLE_STEERING_SENSITIVITY_KEY,
+				DEFAULT_RING_VEHICLE_STEERING_SENSITIVITY,
+				MIN_RING_VEHICLE_STEERING_SENSITIVITY, MAX_RING_VEHICLE_STEERING_SENSITIVITY);
+		ringVehicleFovStrength = readDouble(properties, RING_VEHICLE_FOV_STRENGTH_KEY,
+				minecartFovStrength,
+				MIN_RING_VEHICLE_FOV_STRENGTH, MAX_RING_VEHICLE_FOV_STRENGTH);
 		save();
 		lastImageScanMs = 0L;
 	}
@@ -149,6 +195,8 @@ public final class NestedChestClientConfig {
 		properties.setProperty(BACKGROUND_IMAGE_KEY, configuredBackgroundImage);
 		properties.setProperty(MINECART_FOV_STRENGTH_KEY, Double.toString(minecartFovStrength));
 		properties.setProperty(MINECART_SWAY_STRENGTH_KEY, Double.toString(minecartSwayStrength));
+		properties.setProperty(RING_VEHICLE_STEERING_SENSITIVITY_KEY, Double.toString(ringVehicleSteeringSensitivity));
+		properties.setProperty(RING_VEHICLE_FOV_STRENGTH_KEY, Double.toString(ringVehicleFovStrength));
 		try (OutputStream output = Files.newOutputStream(configFile())) {
 			properties.store(output, "Echo Minecart client settings");
 		} catch (IOException e) {

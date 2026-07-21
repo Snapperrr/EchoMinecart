@@ -2,6 +2,7 @@ package com.xc.echominecart.client;
 
 import com.xc.echominecart.rail.OmniRailBlock;
 import com.xc.echominecart.rail.RailPhysics;
+import com.xc.echominecart.ringvehicle.RingVehicleEntity;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
@@ -10,6 +11,7 @@ import net.minecraft.util.math.Vec3d;
 
 import java.util.List;
 
+/** Computes smoothed speed, powered-rail, descent, transition, and ring-vehicle FOV contributions. */
 public final class MinecartFovEffects {
 	private static final double ACTIVATION_SPEED = 0.075D;
 	private static final double MIN_SPEED = 0.16D;
@@ -32,15 +34,25 @@ public final class MinecartFovEffects {
 	private static double currentBoost;
 	private static long lastUpdateNanos;
 	private static long stateChangeResetUntilNanos;
+	private static int lastRingTransientVehicleId = Integer.MIN_VALUE;
+	private static int lastRingLaunchEvent;
+	private static double ringTransientBoost;
+	private static double ringLaunchHoldSeconds;
 
 	private MinecartFovEffects() {
 	}
 
 	public static double apply(Camera camera, float tickDelta, double fov) {
-		double target = clamp(targetBoost(camera) * NestedChestClientConfig.minecartFovStrength(), 0.0D, MAX_CONFIGURED_BOOST);
+		RingVehicleEntity ringVehicle = ringVehicleView(camera);
+		double strength = ringVehicle != null
+				? NestedChestClientConfig.ringVehicleFovStrength()
+				: NestedChestClientConfig.minecartFovStrength();
+		double target = clamp(targetBoost(camera) * strength, 0.0D, MAX_CONFIGURED_BOOST);
 		double rate = target > currentBoost ? RISE_SMOOTHING_RATE : FALL_SMOOTHING_RATE;
-		currentBoost = ease(currentBoost, target, deltaSeconds(), rate);
-		return fov * (1.0D + currentBoost);
+		double deltaSeconds = deltaSeconds();
+		currentBoost = ease(currentBoost, target, deltaSeconds, rate);
+		updateRingTransient(camera, ringVehicle, strength, deltaSeconds);
+		return fov * (1.0D + clamp(currentBoost + ringTransientBoost, -0.22D, MAX_CONFIGURED_BOOST));
 	}
 
 	private static double targetBoost(Camera camera) {
@@ -49,6 +61,9 @@ public final class MinecartFovEffects {
 			return 0.0D;
 		}
 		Entity focused = camera.getFocusedEntity();
+		if (focused != null && focused.getVehicle() instanceof RingVehicleEntity ringVehicle) {
+			return ringVehicleBoost(ringVehicle);
+		}
 		if (focused == null || !(focused.getVehicle() instanceof AbstractMinecartEntity cart)) {
 			resetCartTracking();
 			return 0.0D;
@@ -95,6 +110,78 @@ public final class MinecartFovEffects {
 			tierBoost = speedBoost;
 		}
 		return clamp(tierBoost * movementLevel + accelerationBoost, 0.0D, MAX_TOTAL_BOOST);
+	}
+
+	private static RingVehicleEntity ringVehicleView(Camera camera) {
+		Entity focused = camera.getFocusedEntity();
+		return focused != null && focused.getVehicle() instanceof RingVehicleEntity vehicle ? vehicle : null;
+	}
+
+	private static void updateRingTransient(Camera camera, RingVehicleEntity vehicle,
+			double strength, double deltaSeconds) {
+		if (vehicle == null || camera.isThirdPerson() || strength <= 0.0D) {
+			ringTransientBoost = ease(ringTransientBoost, 0.0D, deltaSeconds, 8.0D);
+			ringLaunchHoldSeconds = 0.0D;
+			lastRingTransientVehicleId = vehicle == null ? Integer.MIN_VALUE : vehicle.getId();
+			lastRingLaunchEvent = vehicle == null ? 0 : vehicle.getLaunchEvent();
+			return;
+		}
+		if (lastRingTransientVehicleId != vehicle.getId()) {
+			lastRingTransientVehicleId = vehicle.getId();
+			lastRingLaunchEvent = vehicle.getLaunchEvent();
+			ringTransientBoost = 0.0D;
+			ringLaunchHoldSeconds = 0.0D;
+		}
+		if (vehicle.getLaunchEvent() != lastRingLaunchEvent) {
+			lastRingLaunchEvent = vehicle.getLaunchEvent();
+			double launchStrength = Math.sqrt(clamp(vehicle.getLaunchStrength(), 0.0D, 1.0D));
+			double configuredScale = strength / NestedChestClientConfig.DEFAULT_RING_VEHICLE_FOV_STRENGTH;
+			ringTransientBoost = Math.min(1.25D,
+					(0.34D + 0.46D * launchStrength) * configuredScale);
+			ringLaunchHoldSeconds = 0.42D + 0.38D * launchStrength;
+		}
+		if (ringLaunchHoldSeconds > 0.0D) {
+			ringLaunchHoldSeconds = Math.max(0.0D, ringLaunchHoldSeconds - deltaSeconds);
+			return;
+		}
+		if (vehicle.getClutchPhase() == RingVehicleEntity.CLUTCH_ALIGNING
+				|| vehicle.getClutchPhase() == RingVehicleEntity.CLUTCH_ENGAGED) {
+			double compression = -Math.min(0.38D,
+					currentBoost + Math.min(0.14D, 0.07D * strength));
+			ringTransientBoost = ease(ringTransientBoost, compression, deltaSeconds, 12.5D);
+		} else {
+			ringTransientBoost = ease(ringTransientBoost, 0.0D, deltaSeconds,
+					ringTransientBoost > 0.0D ? 1.35D : 7.0D);
+		}
+	}
+
+	private static double ringVehicleBoost(RingVehicleEntity vehicle) {
+		Vec3d velocity = vehicle.getVelocity();
+		double speed = velocity.length();
+		if (vehicle.getId() != lastCartId) {
+			lastCartId = vehicle.getId();
+			lastMovementSignature = Integer.MIN_VALUE;
+			lastSpeed = speed;
+			stateChangeResetUntilNanos = 0L;
+		}
+		if (speed < 0.04D) {
+			lastSpeed = speed;
+			return 0.0D;
+		}
+		double movementLevel = smoothStep(0.04D, 0.14D, speed);
+		double speedLevel = smoothStep(0.12D, 1.15D, speed);
+		double speedBoost = speedLevel * 0.19D;
+		double acceleration = Math.max(0.0D, speed - lastSpeed);
+		lastSpeed = speed;
+		double accelerationBoost = clamp(acceleration * 5.5D, 0.0D, 0.065D);
+		double poweredBoost = vehicle.getVariant().powered() && vehicle.isHighGear()
+				? 0.035D * smoothStep(0.15D, 0.55D, speed)
+				: 0.0D;
+		double verticalDescent = velocity.y < -0.08D
+				? smoothStep(0.08D, 1.25D, -velocity.y) * 0.085D
+				: 0.0D;
+		return clamp((speedBoost + poweredBoost + verticalDescent) * movementLevel + accelerationBoost,
+				0.0D, 0.30D);
 	}
 
 	private static double accelerationBoost(double speed) {

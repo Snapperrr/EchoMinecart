@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/** Supplies world context and nested insertion fallback around vanilla hopper transfer. */
 @Mixin(HopperBlockEntity.class)
 public abstract class HopperBlockEntityMixin {
 	@Inject(method = "serverTick", at = @At("HEAD"))

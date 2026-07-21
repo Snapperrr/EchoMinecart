@@ -11,6 +11,7 @@ import net.minecraft.util.Identifier;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Requests synchronization of one nested-container path from the authoritative server. */
 public record NestedChestOpenPayload(List<Integer> path) implements CustomPayload {
 	public static final Id<NestedChestOpenPayload> ID = new Id<>(Identifier.of(NestedChestMod.MOD_ID, "nested_open"));
 	public static final PacketCodec<ByteBuf, List<Integer>> PATH_CODEC = PacketCodecs.VAR_INT

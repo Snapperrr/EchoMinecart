@@ -12,6 +12,7 @@ import net.minecraft.world.World;
  * 充能棒：潜行右键矿车，沿"玩家 → 矿车"方向推一把，
  * 用来在没有充能轨的地方直接启动矿车（含墙面/天花板轨）。
  */
+/** Applies a direct velocity impulse to a targeted minecart for testing and manual starts. */
 public final class BoosterRodItem extends Item {
 	private static final double PUSH_STRENGTH = 0.5D;
 

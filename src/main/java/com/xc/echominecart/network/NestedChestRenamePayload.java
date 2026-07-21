@@ -11,6 +11,7 @@ import net.minecraft.util.Identifier;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Requests a bounded custom name for the chest item addressed by a nested path. */
 public record NestedChestRenamePayload(List<Integer> path, String name) implements CustomPayload {
 	public static final Id<NestedChestRenamePayload> ID = new Id<>(Identifier.of(NestedChestMod.MOD_ID, "nested_rename"));
 	public static final PacketCodec<ByteBuf, List<Integer>> PATH_CODEC = PacketCodecs.VAR_INT

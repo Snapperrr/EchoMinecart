@@ -12,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.Optional;
 
+/** Overrides passenger anchors only for carriage and ring-vehicle owners. */
 @Mixin(Entity.class)
 public abstract class EntityPassengerMixin {
 	@Inject(method = "canAddPassenger", at = @At("HEAD"), cancellable = true)

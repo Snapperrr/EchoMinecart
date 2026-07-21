@@ -12,6 +12,7 @@ import net.minecraft.util.Identifier;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Client click request; the server re-resolves the path and replays the action through vanilla slots. */
 public record NestedChestClickPayload(List<Integer> path, int nestedSlot, int button, SlotActionType actionType) implements CustomPayload {
 	public static final Id<NestedChestClickPayload> ID = new Id<>(Identifier.of(NestedChestMod.MOD_ID, "nested_click"));
 	public static final PacketCodec<ByteBuf, List<Integer>> PATH_CODEC = PacketCodecs.VAR_INT

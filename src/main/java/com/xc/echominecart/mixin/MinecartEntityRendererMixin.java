@@ -20,6 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.List;
 
+/** Aligns vanilla minecart models to wall, ceiling, slope, and transition contact frames. */
 @Mixin(MinecartEntityRenderer.class)
 public abstract class MinecartEntityRendererMixin {
 	@Shadow

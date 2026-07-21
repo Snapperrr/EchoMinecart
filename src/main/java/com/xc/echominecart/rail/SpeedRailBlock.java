@@ -7,6 +7,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
+/** Vanilla-topology rail whose signed absolute target speed is stored outside BlockState. */
 public final class SpeedRailBlock extends RailBlock {
 	public SpeedRailBlock(AbstractBlock.Settings settings) {
 		super(settings);

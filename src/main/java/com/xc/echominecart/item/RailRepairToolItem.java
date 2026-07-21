@@ -20,6 +20,7 @@ import java.util.List;
  * 手动修正单节 EchoMinecart 铁轨状态。
  * 普通右键循环并锁定形态；潜行右键解除锁定，让自动连接重新接管。
  */
+/** Cycles explicit omni-rail topology presets and lock state when automatic selection is ambiguous. */
 public final class RailRepairToolItem extends Item {
 	public RailRepairToolItem(Settings settings) {
 		super(settings);

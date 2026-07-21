@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/** Replaces vanilla horizontal-only speed sampling for external minecart audio. */
 @Mixin(MovingMinecartSoundInstance.class)
 public abstract class MovingMinecartSoundInstanceMixin {
 	@Shadow

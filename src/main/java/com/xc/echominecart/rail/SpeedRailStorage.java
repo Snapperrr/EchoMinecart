@@ -11,6 +11,7 @@ import net.minecraft.world.PersistentState;
 import java.util.HashMap;
 import java.util.Map;
 
+/** Persistent per-dimension map from speed-rail positions to finite, clamped target speeds. */
 public final class SpeedRailStorage {
 	public static final double DEFAULT_SPEED = 1.0D;
 	public static final double MAX_ABSOLUTE_SPEED = 256.0D;
@@ -58,6 +59,7 @@ public final class SpeedRailStorage {
 		return world.getPersistentStateManager().getOrCreate(STATE_TYPE, STATE_ID);
 	}
 
+	/** Omits default-valued entries so large worlds do not serialize unnecessary rail records. */
 	private static final class State extends PersistentState {
 		private final Map<Long, Double> speeds = new HashMap<>();
 

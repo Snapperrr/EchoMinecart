@@ -20,6 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.Optional;
 
+/** Routes pre/post rail movement and maximum-speed queries through Echo rail physics. */
 @Mixin(AbstractMinecartEntity.class)
 public abstract class AbstractMinecartEntityMixin {
 	@Inject(method = "tick", at = @At("HEAD"))

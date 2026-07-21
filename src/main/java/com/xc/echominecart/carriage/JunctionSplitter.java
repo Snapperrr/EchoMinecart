@@ -30,6 +30,7 @@ import java.util.UUID;
  * - 探针车经过更深的分叉还会继续分裂（受组内探针总数上限约束）；
  * - 探针车带命令标签，注册表丢失（如重启）后作为孤儿被清理。
  */
+/** Creates and retires temporary runner carts used to visualize branch stretching at junctions. */
 public final class JunctionSplitter {
 	public static final String RUNNER_TAG = "echominecart_branch_runner";
 	// Kept behind a switch so the experimental branch-stretch implementation can be revisited later.

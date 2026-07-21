@@ -13,6 +13,7 @@ import net.minecraft.util.collection.DefaultedList;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Server-to-client display snapshot for a resolved nested path. */
 public record NestedChestSyncPayload(List<Integer> path, DefaultedList<ItemStack> stacks) implements CustomPayload {
 	public static final Id<NestedChestSyncPayload> ID = new Id<>(Identifier.of(NestedChestMod.MOD_ID, "nested_sync"));
 	public static final PacketCodec<ByteBuf, List<Integer>> PATH_CODEC = PacketCodecs.VAR_INT

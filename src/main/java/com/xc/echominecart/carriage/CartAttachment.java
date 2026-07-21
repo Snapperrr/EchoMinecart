@@ -20,6 +20,7 @@ import java.util.UUID;
  * 扩充车厢里的模块位置缓存、岔路拉伸倒计时。
  * 箱子部分随矿车实体 NBT 持久化。
  */
+/** Reads and writes per-minecart link, anchor, storage, and runner metadata in command tags/NBT. */
 public final class CartAttachment {
 	public static final int CHEST_PAGE_SIZE = 27;
 	private static final Map<UUID, CartAttachment> BY_CART = new HashMap<>();

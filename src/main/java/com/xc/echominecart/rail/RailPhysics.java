@@ -21,6 +21,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * Replaces vanilla movement only while a minecart is attached to an omnidirectional rail.
+ *
+ * <p>A contact is a rail block plus the outward normal of its supporting face. Velocity is
+ * projected into that face, while short transition locks prevent the next tick from re-acquiring
+ * the face just left. Explicit Bezier arc records own cross-face animation so contact lookup cannot
+ * pull a cart away from an active corner.</p>
+ */
 public final class RailPhysics {
 	public static final double MAX_ATTACHED_SPEED = 0.65D;
 
@@ -43,6 +51,7 @@ public final class RailPhysics {
 	private static final double WALL_HIGH = 0.70D;
 	private static final Direction[] HORIZONTAL = {Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST};
 
+	// Runtime-only state; forgetCarts must prune every map when entities unload.
 	private static final Set<UUID> CONTROLLED = new HashSet<>();
 	private static final Map<UUID, ForcedContact> TRANSITION_LOCKS = new HashMap<>();
 	private static final Map<UUID, Long> DETACHED_UNTIL = new HashMap<>();
@@ -64,6 +73,7 @@ public final class RailPhysics {
 		VERTICAL_WALL_ARCS.keySet().retainAll(liveCartIds);
 	}
 
+	/** Runs before vanilla movement and claims the tick only when an Echo rail contact exists. */
 	public static void beforeCartTick(AbstractMinecartEntity cart) {
 		if (!(cart.getWorld() instanceof ServerWorld world)) {
 			return;
@@ -1342,6 +1352,7 @@ public final class RailPhysics {
 		return Math.max(min, Math.min(max, value));
 	}
 
+	/** A rail block and the outward normal of the face carrying it. */
 	public record RailContact(BlockPos pos, BlockState state, Direction face) {
 	}
 
@@ -1351,6 +1362,7 @@ public final class RailPhysics {
 		}
 	}
 
+	/** Cubic Bezier handoff between adjacent vertical faces. */
 	private static final class LateralArc {
 		private final Vec3d start;
 		private final Vec3d controlOne;
@@ -1377,6 +1389,7 @@ public final class RailPhysics {
 		}
 	}
 
+	/** Multi-control-point handoff used when a short vertical corner needs extra clearance. */
 	private static final class VerticalWallArc {
 		private final Vec3d start;
 		private final Vec3d controlOne;

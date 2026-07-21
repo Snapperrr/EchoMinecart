@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /** Keeps only already-tripped mobs pinned; rail collision events create new trips. */
+/** Pins living entities to rails until damage releases them, and synchronizes the visual pose. */
 public final class TripManager {
 	private static final int HOLD_INTERVAL_TICKS = 4;
 	private static final Map<UUID, TrippedMob> TRIPPED = new HashMap<>();

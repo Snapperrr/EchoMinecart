@@ -7,6 +7,7 @@ import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.util.Identifier;
 
+/** Client configuration request; the server rechecks block type, distance, and numeric bounds. */
 public record SpeedRailSetPayload(long pos, double speed) implements CustomPayload {
 	public static final Id<SpeedRailSetPayload> ID = new Id<>(Identifier.of(NestedChestMod.MOD_ID, "speed_rail_set"));
 	public static final PacketCodec<ByteBuf, SpeedRailSetPayload> CODEC = PacketCodec.tuple(

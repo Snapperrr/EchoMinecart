@@ -5,6 +5,7 @@ import net.minecraft.entity.vehicle.AbstractMinecartEntity;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 
+/** Supplies orientation-independent motion intensity for vanilla minecart sound mixins. */
 public final class MinecartSoundEffects {
 	private static final float NO_ATTACHED_SOUND = -1.0F;
 

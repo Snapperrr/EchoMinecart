@@ -13,6 +13,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.Locale;
 
+/** Validates and sends the signed absolute speed configured for one speed rail block. */
 public final class SpeedRailSettingsScreen extends Screen {
 	private final Screen parent;
 	private final BlockPos railPos;

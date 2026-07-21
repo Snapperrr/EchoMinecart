@@ -28,6 +28,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Client window manager layered over a vanilla container screen.
+ *
+ * <p>Windows hold display snapshots only; the server remains authoritative for clicks and path
+ * traversal. Paths are slot-index chains rather than object identities. Rendering and hit testing
+ * therefore run in ancestor order so an overlapping child window always wins over its parent.</p>
+ */
 public final class NestedChestOverlay {
 	private static final int SLOT_SIZE = 18;
 	private static final int GRID_COLUMNS = 9;

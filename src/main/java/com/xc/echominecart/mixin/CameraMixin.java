@@ -4,6 +4,7 @@ import com.xc.echominecart.client.CarriageClientVisuals;
 import com.xc.echominecart.client.NestedChestClientConfig;
 import com.xc.echominecart.rail.OmniRailBlock;
 import com.xc.echominecart.rail.RailPhysics;
+import com.xc.echominecart.ringvehicle.RingVehicleEntity;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -23,6 +24,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/**
+ * Applies minecart and ring-vehicle camera frames after vanilla camera setup.
+ * Quaternion interpolation always chooses the short arc; passenger position correction is kept
+ * separate from orientation so first- and third-person views share the same vehicle anchor.
+ */
 @Mixin(Camera.class)
 public abstract class CameraMixin {
 	private static final Vector3f BASE_FORWARD = new Vector3f(0.0F, 0.0F, -1.0F);
@@ -71,6 +77,52 @@ public abstract class CameraMixin {
 
 	@Inject(method = "update", at = @At("RETURN"))
 	private void echominecart$tiltFirstPersonWithAttachedMinecart(BlockView area, Entity focusedEntity, boolean thirdPerson, boolean inverseView, float tickDelta, CallbackInfo ci) {
+		if (focusedEntity.getVehicle() instanceof RingVehicleEntity ringVehicle) {
+			resetAttachedRotationSmoothing();
+			if (ringVehicle.isDiscMode()) {
+				if (thirdPerson) {
+					setPos(ringVehicle.getVisualCenter(tickDelta));
+					float scale = focusedEntity instanceof LivingEntity living ? living.getScale() : 1.0F;
+					moveBy(-clipToSpace(4.0F * scale), 0.0F, 0.0F);
+				} else {
+					float orbitAngle = ringVehicle.getVisualInnerCartAngle(tickDelta);
+					Vec3d heading = bodyHeading(ringVehicle.getVisualBodyYaw(tickDelta));
+					double radians = Math.toRadians(orbitAngle);
+					Quaternionf originalRotation = new Quaternionf(rotation);
+					Quaternionf discTilt = new Quaternionf().rotationAxis((float) Math.toRadians(90.0D),
+							(float) heading.x, (float) heading.y, (float) heading.z);
+					Quaternionf discOrbit = new Quaternionf().rotationAxis((float) radians, 0.0F, 1.0F, 0.0F);
+					rotation.set(discOrbit).mul(discTilt).mul(originalRotation);
+					double eyeHeight = Math.max(0.0D, focusedEntity.getEyeY() - focusedEntity.getY());
+					Vec3d uprightEye = new Vec3d(0.0D, eyeHeight, 0.0D);
+					Vec3d tiltedEye = rotateAroundAxis(uprightEye, heading, Math.toRadians(90.0D));
+					Vec3d rotatedEye = rotateAroundAxis(tiltedEye, Vec3d.of(Direction.UP.getVector()), radians);
+					Vec3d seatCorrection = ringVehicle.getVisualPassengerAnchor(tickDelta)
+							.subtract(focusedEntity.getLerpedPos(tickDelta));
+					setPos(getPos().add(seatCorrection).add(rotatedEye.subtract(uprightEye)));
+					refreshPlanes();
+				}
+				return;
+			}
+			if (!thirdPerson) {
+				float orbitAngle = ringVehicle.getVisualInnerCartAngle(tickDelta);
+				Vec3d heading = bodyHeading(ringVehicle.getVisualBodyYaw(tickDelta));
+				Vec3d orbitAxis = Vec3d.of(Direction.UP.getVector()).crossProduct(heading).normalize();
+				double radians = Math.toRadians(orbitAngle);
+				Quaternionf originalRotation = new Quaternionf(rotation);
+				Quaternionf orbitRotation = new Quaternionf().rotationAxis((float) radians,
+						(float) orbitAxis.x, (float) orbitAxis.y, (float) orbitAxis.z);
+				rotation.set(orbitRotation).mul(originalRotation);
+				double eyeHeight = Math.max(0.0D, focusedEntity.getEyeY() - focusedEntity.getY());
+				Vec3d uprightEye = new Vec3d(0.0D, eyeHeight, 0.0D);
+				Vec3d rotatedEye = rotateAroundAxis(uprightEye, orbitAxis, radians);
+				Vec3d radialUp = rotateAroundAxis(Vec3d.of(Direction.UP.getVector()), orbitAxis, radians);
+				setPos(getPos().add(rotatedEye.subtract(uprightEye))
+						.add(radialUp.multiply(ringVehicle.getRideVisualBob(tickDelta))));
+				refreshPlanes();
+			}
+			return;
+		}
 		if (!(focusedEntity.getVehicle() instanceof AbstractMinecartEntity minecart)) {
 			resetAttachedRotationSmoothing();
 			return;
@@ -250,6 +302,19 @@ public abstract class CameraMixin {
 		BASE_FORWARD.rotate(rotation, horizontalPlane);
 		BASE_UP.rotate(rotation, verticalPlane);
 		BASE_LEFT.rotate(rotation, diagonalPlane);
+	}
+
+	private Vec3d bodyHeading(float yaw) {
+		double radians = Math.toRadians(yaw);
+		return new Vec3d(-Math.sin(radians), 0.0D, Math.cos(radians));
+	}
+
+	private Vec3d rotateAroundAxis(Vec3d vector, Vec3d axis, double angle) {
+		double cos = Math.cos(angle);
+		double sin = Math.sin(angle);
+		return vector.multiply(cos)
+				.add(axis.crossProduct(vector).multiply(sin))
+				.add(axis.multiply(axis.dotProduct(vector) * (1.0D - cos)));
 	}
 
 	private boolean hasSolidCollisionAt(BlockView area, Vec3d pos) {

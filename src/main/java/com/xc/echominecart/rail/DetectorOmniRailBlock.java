@@ -20,6 +20,7 @@ import net.minecraft.world.World;
 
 import java.util.List;
 
+/** Omni-directional detector rail with cart sensing, redstone output, and comparator support. */
 public final class DetectorOmniRailBlock extends OmniRailBlock {
 	public static final MapCodec<DetectorOmniRailBlock> CODEC = AbstractBlock.createCodec(DetectorOmniRailBlock::new);
 	private static final int DETECTOR_DELAY = 20;
@@ -81,6 +82,7 @@ public final class DetectorOmniRailBlock extends OmniRailBlock {
 		return 15;
 	}
 
+	/** Recomputes detection without changing the rail's previously resolved connection topology. */
 	private void updatePoweredStatus(World world, BlockPos pos, BlockState state) {
 		boolean hasCart = !cartsOnRail(world, pos).isEmpty();
 		boolean powered = state.get(POWERED);

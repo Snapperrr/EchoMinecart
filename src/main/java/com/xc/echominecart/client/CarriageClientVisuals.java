@@ -32,6 +32,7 @@ import java.util.Map;
  *   Q(WEST) =Rz(+90): 模型X→世界+Y, 模型Z→世界Z ⇒ (u,v)=( vy, vz)
  *   Q(DOWN) =Rx(180): 模型X→世界X, 模型Z→世界−Z ⇒ (u,v)=(vx,−vz)
  */
+/** Caches short-lived carriage snapshots and derives deterministic render scale/offset values. */
 public final class CarriageClientVisuals {
 	private static final int SHAPE_EXPIRY_TICKS = 15;
 	private static final RenderScale NORMAL = new RenderScale(1.0F, 1.0F, 1.0F, 0.0F, 0.0F, 0.0F);

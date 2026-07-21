@@ -6,6 +6,7 @@ import net.minecraft.client.gui.screen.Screen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
+/** Accessor for Screen child registration used by the nested overlay's text fields. */
 @Mixin(Screen.class)
 public interface ScreenAccessor {
 	@Invoker("addSelectableChild")

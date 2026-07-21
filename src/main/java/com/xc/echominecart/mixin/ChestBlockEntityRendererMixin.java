@@ -42,6 +42,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Renders connected chest shapes that vanilla's single/double models cannot represent.
+ * One deterministic root renders the whole group; other cells cancel their local render to avoid
+ * z-fighting. Sparse footprints are decomposed into visible boxes instead of filling their holes.
+ */
 @Mixin(ChestBlockEntityRenderer.class)
 public abstract class ChestBlockEntityRendererMixin {
 	private static final float HALF_PI = (float) Math.PI / 2.0F;

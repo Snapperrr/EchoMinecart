@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/** Keeps the inside-riding loop audible for non-horizontal Echo rail movement. */
 @Mixin(MinecartInsideSoundInstance.class)
 public abstract class MinecartInsideSoundInstanceMixin {
 	@Shadow

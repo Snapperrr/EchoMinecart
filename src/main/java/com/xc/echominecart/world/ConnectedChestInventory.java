@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/** Presents a deterministic slot view over a set of connected chest block entities. */
 public class ConnectedChestInventory implements Inventory {
 	private static final Map<String, Integer> OPEN_GROUPS = new ConcurrentHashMap<>();
 

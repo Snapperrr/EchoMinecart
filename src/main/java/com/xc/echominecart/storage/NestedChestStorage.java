@@ -30,6 +30,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * SQLite-backed page store for nested chest contents.
+ *
+ * <p>ItemStacks retain only a stable page identifier; each 27-slot page is authoritative in SQLite.
+ * Writes replace a complete page inside one transaction, and the small in-memory cache never becomes
+ * an independent source of truth. Legacy component data is migrated on first access.</p>
+ */
 public final class NestedChestStorage {
 	private static final Logger LOGGER = LogUtils.getLogger();
 	private static final String CUSTOM_ID_KEY = "echominecart_id";

@@ -4,6 +4,7 @@ import com.mojang.serialization.MapCodec;
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.AbstractRailBlock;
 
+/** Omni-directional powered rail retaining redstone acceleration and limited power propagation. */
 public final class PoweredOmniRailBlock extends OmniRailBlock {
 	public static final MapCodec<PoweredOmniRailBlock> CODEC = AbstractBlock.createCodec(PoweredOmniRailBlock::new);
 

@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "RRR",
+    "RMR",
+    "RRR"
+  ],
+  "key": {
+    "R": {
+      "item": "minecraft:powered_rail"
+    },
+    "M": {
+      "item": "minecraft:minecart"
+    }
+  },
+  "result": {
+    "id": "echominecart:ring_powered_rail_vehicle",
+    "count": 1
+  }
+}

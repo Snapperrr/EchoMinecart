@@ -12,6 +12,7 @@ import java.util.List;
  * 直接套用 Chest 迁移过来的连接箱滚动 UI。
  * 槽位按矿车 UUID 稳定排序，多次打开时每个箱子对应固定页。
  */
+/** Flattens carriage chest pages into one Inventory while preserving each page's backing list. */
 public final class CartGroupChestInventory implements Inventory {
 	private final List<AbstractMinecartEntity> carts;
 

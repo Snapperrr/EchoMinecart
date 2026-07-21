@@ -9,6 +9,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 
+/** Server menu for connected chests with a scrollable logical slot window. */
 public class ConnectedChestScreenHandler extends ScreenHandler {
 	public static final int COLUMNS = 9;
 	public static final int VISIBLE_ROWS = 6;

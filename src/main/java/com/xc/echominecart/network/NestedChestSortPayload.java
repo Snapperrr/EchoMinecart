@@ -11,6 +11,7 @@ import net.minecraft.util.Identifier;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Requests deterministic server-side sorting while preserving locked nested-chest references. */
 public record NestedChestSortPayload(List<Integer> path, int mode, boolean ascending) implements CustomPayload {
 	public static final Id<NestedChestSortPayload> ID = new Id<>(Identifier.of(NestedChestMod.MOD_ID, "nested_sort"));
 	public static final PacketCodec<ByteBuf, List<Integer>> PATH_CODEC = PacketCodecs.VAR_INT

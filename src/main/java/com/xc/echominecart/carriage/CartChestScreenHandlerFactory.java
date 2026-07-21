@@ -9,6 +9,7 @@ import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 
+/** Opens the logical chest inventory owned by a linked carriage group. */
 public final class CartChestScreenHandlerFactory implements ExtendedScreenHandlerFactory<Integer> {
 	private final Inventory inventory;
 	private final int chestCount;

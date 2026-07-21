@@ -12,6 +12,11 @@ import net.minecraft.util.math.Vec3d;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+/**
+ * Applies a speed rail's configured value as a replacement velocity, not an additive impulse.
+ * A short per-cart record restores that velocity after vanilla rail movement and temporarily raises
+ * the vanilla speed cap so intentionally extreme settings are not discarded immediately.
+ */
 public final class SpeedRailRuntime {
 	private static final long SAME_RAIL_COOLDOWN_TICKS = 8L;
 	private static final long MAX_BOOST_LIFETIME_TICKS = 20L * 60L;
@@ -20,6 +25,7 @@ public final class SpeedRailRuntime {
 	private SpeedRailRuntime() {
 	}
 
+	/** Sets the target tangent velocity once per rail entry. Negative values reverse the tangent. */
 	public static void beforeMoveOnRail(AbstractMinecartEntity cart, BlockPos pos, BlockState state) {
 		if (!(cart.getWorld() instanceof ServerWorld world) || !state.isOf(EchoMinecartRegistry.SPEED_RAIL)) {
 			return;

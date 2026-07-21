@@ -15,6 +15,7 @@ import net.minecraft.world.World;
  * 矿车不是 LivingEntity，useOnEntity 不会触发，
  * 实际分发在 EchoMinecartRegistry 的 UseEntityCallback 里。
  */
+/** Two-click tool that creates or removes explicit persistent links between minecarts. */
 public final class MinecartLinkToolItem extends Item {
 	public MinecartLinkToolItem(Settings settings) {
 		super(settings);

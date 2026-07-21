@@ -4,9 +4,15 @@ import com.xc.echominecart.carriage.CarriageManager;
 import com.xc.echominecart.item.BoosterRodItem;
 import com.xc.echominecart.item.MinecartLinkToolItem;
 import com.xc.echominecart.item.RailRepairToolItem;
+import com.xc.echominecart.item.ReinforcedClutchItem;
 import com.xc.echominecart.item.SpeedRailBlockItem;
 import com.xc.echominecart.item.TransportBinderItem;
 import com.xc.echominecart.network.SpeedRailOpenPayload;
+import com.xc.echominecart.ringvehicle.LavaProofRingVehicleRecipe;
+import com.xc.echominecart.ringvehicle.RingVehicleEntity;
+import com.xc.echominecart.ringvehicle.RingVehicleExpansionRecipe;
+import com.xc.echominecart.ringvehicle.RingVehicleItem;
+import com.xc.echominecart.ringvehicle.RingVehicleVariant;
 import com.xc.echominecart.trip.TripManager;
 import net.fabricmc.fabric.api.networking.v1.EntityTrackingEvents;
 import com.xc.echominecart.rail.OmniRailBlock;
@@ -17,6 +23,8 @@ import com.xc.echominecart.rail.SpeedRailStorage;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
+import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
+import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.registry.LandPathNodeTypesRegistry;
@@ -25,6 +33,8 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.SpawnGroup;
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.vehicle.AbstractMinecartEntity;
@@ -36,6 +46,8 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
+import net.minecraft.recipe.RecipeSerializer;
+import net.minecraft.recipe.SpecialRecipeSerializer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.ActionResult;
@@ -55,6 +67,7 @@ import java.util.Optional;
  * EchoMinecart 的注册中心：全向铁轨方块/物品、调试工具、
  * 原版铁轨与矿车放置的接管，以及服务器 tick 驱动。
  */
+/** Owns registration of blocks, items, entities, recipes, and their shared lookup helpers. */
 public final class EchoMinecartRegistry {
 	public static final Block ECHO_RAIL = registerBlock("echo_rail", new OmniRailBlock(AbstractBlock.Settings.copy(Blocks.RAIL)));
 	public static final Block ECHO_POWERED_RAIL = registerBlock("echo_powered_rail", new PoweredOmniRailBlock(AbstractBlock.Settings.copy(Blocks.POWERED_RAIL)));
@@ -67,6 +80,34 @@ public final class EchoMinecartRegistry {
 	public static final TransportBinderItem TRANSPORT_BINDER = registerItem("transport_binder", new TransportBinderItem(new Item.Settings().maxCount(1)));
 	public static final BoosterRodItem BOOSTER_ROD = registerItem("booster_rod", new BoosterRodItem(new Item.Settings().maxCount(1)));
 	public static final RailRepairToolItem RAIL_REPAIR_TOOL = registerItem("rail_repair_tool", new RailRepairToolItem(new Item.Settings().maxCount(1)));
+	public static final Item REINFORCED_CLUTCH = registerItem("reinforced_clutch",
+			new ReinforcedClutchItem(new Item.Settings().maxDamage(360)));
+	public static final EntityType<RingVehicleEntity> RING_VEHICLE_ENTITY = Registry.register(
+			Registries.ENTITY_TYPE,
+			Identifier.of(NestedChestMod.MOD_ID, "ring_vehicle"),
+			EntityType.Builder.<RingVehicleEntity>create(RingVehicleEntity::new, SpawnGroup.MISC)
+					.dimensions(RingVehicleEntity.SIZE, RingVehicleEntity.SIZE)
+					.eyeHeight(0.85F)
+					.maxTrackingRange(12)
+					.trackingTickInterval(1)
+					.alwaysUpdateVelocity(true)
+					.build());
+	public static final RingVehicleItem RING_RAIL_VEHICLE = registerItem("ring_rail_vehicle",
+			new RingVehicleItem(RingVehicleVariant.RAIL, false, new Item.Settings().maxCount(1).fireproof()));
+	public static final RingVehicleItem RING_POWERED_RAIL_VEHICLE = registerItem("ring_powered_rail_vehicle",
+			new RingVehicleItem(RingVehicleVariant.POWERED, false, new Item.Settings().maxCount(1).fireproof()));
+	public static final RingVehicleItem LAVA_PROOF_RING_RAIL_VEHICLE = registerItem("lava_proof_ring_rail_vehicle",
+			new RingVehicleItem(RingVehicleVariant.RAIL, true, new Item.Settings().maxCount(1).fireproof()));
+	public static final RingVehicleItem LAVA_PROOF_RING_POWERED_RAIL_VEHICLE = registerItem("lava_proof_ring_powered_rail_vehicle",
+			new RingVehicleItem(RingVehicleVariant.POWERED, true, new Item.Settings().maxCount(1).fireproof()));
+	public static final RecipeSerializer<LavaProofRingVehicleRecipe> LAVA_PROOF_RING_VEHICLE_RECIPE = Registry.register(
+			Registries.RECIPE_SERIALIZER,
+			Identifier.of(NestedChestMod.MOD_ID, "ring_vehicle_lava_upgrade"),
+			new SpecialRecipeSerializer<>(LavaProofRingVehicleRecipe::new));
+	public static final RecipeSerializer<RingVehicleExpansionRecipe> RING_VEHICLE_EXPANSION_RECIPE = Registry.register(
+			Registries.RECIPE_SERIALIZER,
+			Identifier.of(NestedChestMod.MOD_ID, "ring_vehicle_expansion"),
+			new SpecialRecipeSerializer<>(RingVehicleExpansionRecipe::new));
 
 	private EchoMinecartRegistry() {
 	}
@@ -82,10 +123,24 @@ public final class EchoMinecartRegistry {
 			entries.add(TRANSPORT_BINDER);
 			entries.add(BOOSTER_ROD);
 			entries.add(RAIL_REPAIR_TOOL);
+			entries.add(REINFORCED_CLUTCH);
+			entries.add(RING_RAIL_VEHICLE);
+			entries.add(RING_POWERED_RAIL_VEHICLE);
+			entries.add(LAVA_PROOF_RING_RAIL_VEHICLE);
+			entries.add(LAVA_PROOF_RING_POWERED_RAIL_VEHICLE);
 		});
 		ServerTickEvents.END_SERVER_TICK.register(CarriageManager::serverTick);
+		ServerTickEvents.END_SERVER_TICK.register(ReinforcedClutchItem::serverTick);
 		UseBlockCallback.EVENT.register(EchoMinecartRegistry::useBlock);
 		UseEntityCallback.EVENT.register(EchoMinecartRegistry::useEntity);
+		AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) ->
+				player.getVehicle() instanceof RingVehicleEntity vehicle && vehicle.isMiningModeEnabled()
+						? ActionResult.FAIL
+						: ActionResult.PASS);
+		AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) ->
+				player.getVehicle() instanceof RingVehicleEntity vehicle && vehicle.isMiningModeEnabled()
+						? ActionResult.FAIL
+						: ActionResult.PASS);
 		// 玩家开始追踪实体时补发绊倒姿态，否则后进入范围的客户端看不到趴倒。
 		EntityTrackingEvents.START_TRACKING.register((entity, player) -> TripManager.sendStateTo(entity, player));
 		registerRailPathfinding();
@@ -106,6 +161,13 @@ public final class EchoMinecartRegistry {
 
 	private static <T extends Item> T registerItem(String path, T item) {
 		return Registry.register(Registries.ITEM, Identifier.of(NestedChestMod.MOD_ID, path), item);
+	}
+
+	public static Item ringVehicleItem(RingVehicleVariant variant, boolean lavaProof) {
+		if (variant.powered()) {
+			return lavaProof ? LAVA_PROOF_RING_POWERED_RAIL_VEHICLE : RING_POWERED_RAIL_VEHICLE;
+		}
+		return lavaProof ? LAVA_PROOF_RING_RAIL_VEHICLE : RING_RAIL_VEHICLE;
 	}
 
 	// ------------------------------------------------------------ placement
