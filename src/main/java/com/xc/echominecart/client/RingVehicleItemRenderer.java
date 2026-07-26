@@ -39,13 +39,14 @@ public final class RingVehicleItemRenderer implements BuiltinItemRendererRegistr
 		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(28.0F));
 		NbtComponent data = stack.get(DataComponentTypes.CUSTOM_DATA);
 		boolean chestAttached = data != null && data.copyNbt().getBoolean("ChestAttached");
+		boolean spiderMode = RingVehicleItem.spiderMode(stack);
 		boolean discMode = RingVehicleItem.discMode(stack);
 		int extraMinecarts = data == null ? 0 : data.copyNbt().getInt("DiscExtraMinecarts");
 		if (discMode) {
 			matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(90.0F));
 		}
 		modelRenderer().render(item.variant(), item.lavaProof(), chestAttached, ringLevel, 0.0F, 0.0F,
-				discMode, extraMinecarts,
+				spiderMode, discMode, extraMinecarts,
 				matrices, vertexConsumers, light);
 		matrices.pop();
 	}

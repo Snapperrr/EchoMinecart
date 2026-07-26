@@ -24,6 +24,7 @@ public final class MinecartFovEffects {
 	private static final double VERTICAL_DESCENT_BASE = 0.205D;
 	private static final double MAX_TOTAL_BOOST = 0.255D;
 	private static final double MAX_CONFIGURED_BOOST = 1.25D;
+	private static final double MAX_FINAL_FOV = 150.0D;
 	private static final double RISE_SMOOTHING_RATE = 3.25D;
 	private static final double FALL_SMOOTHING_RATE = 5.0D;
 	private static final long STATE_CHANGE_RESET_NANOS = 320_000_000L;
@@ -38,6 +39,10 @@ public final class MinecartFovEffects {
 	private static int lastRingLaunchEvent;
 	private static double ringTransientBoost;
 	private static double ringLaunchHoldSeconds;
+	private static int lastSpiderFovVehicleId = Integer.MIN_VALUE;
+	private static float lastSpiderGaitPhase;
+	private static double filteredSpiderSpeed;
+	private static long spiderMotionHoldUntilNanos;
 
 	private MinecartFovEffects() {
 	}
@@ -52,7 +57,9 @@ public final class MinecartFovEffects {
 		double deltaSeconds = deltaSeconds();
 		currentBoost = ease(currentBoost, target, deltaSeconds, rate);
 		updateRingTransient(camera, ringVehicle, strength, deltaSeconds);
-		return fov * (1.0D + clamp(currentBoost + ringTransientBoost, -0.22D, MAX_CONFIGURED_BOOST));
+		double boostedFov = fov
+				* (1.0D + clamp(currentBoost + ringTransientBoost, -0.22D, MAX_CONFIGURED_BOOST));
+		return Math.min(boostedFov, MAX_FINAL_FOV);
 	}
 
 	private static double targetBoost(Camera camera) {
@@ -164,6 +171,10 @@ public final class MinecartFovEffects {
 			lastSpeed = speed;
 			stateChangeResetUntilNanos = 0L;
 		}
+		if (vehicle.isSpiderMode()) {
+			return spiderVehicleBoost(vehicle, speed);
+		}
+		resetSpiderFovTracking();
 		if (speed < 0.04D) {
 			lastSpeed = speed;
 			return 0.0D;
@@ -182,6 +193,44 @@ public final class MinecartFovEffects {
 				: 0.0D;
 		return clamp((speedBoost + poweredBoost + verticalDescent) * movementLevel + accelerationBoost,
 				0.0D, 0.30D);
+	}
+
+	private static double spiderVehicleBoost(RingVehicleEntity vehicle, double speed) {
+		long now = System.nanoTime();
+		float gaitPhase = vehicle.getSpiderGaitPhase();
+		if (lastSpiderFovVehicleId != vehicle.getId()) {
+			lastSpiderFovVehicleId = vehicle.getId();
+			lastSpiderGaitPhase = gaitPhase;
+			filteredSpiderSpeed = speed;
+			spiderMotionHoldUntilNanos = 0L;
+		}
+		double phaseDelta = Math.abs(gaitPhase - lastSpiderGaitPhase);
+		phaseDelta = Math.min(phaseDelta, 1.0D - Math.min(phaseDelta, 1.0D));
+		if (phaseDelta > 0.0005D) {
+			spiderMotionHoldUntilNanos = now + 420_000_000L;
+		}
+		lastSpiderGaitPhase = gaitPhase;
+		boolean walking = speed >= 0.028D || now < spiderMotionHoldUntilNanos;
+		double response = speed > filteredSpiderSpeed ? 0.24D : walking ? 0.018D : 0.085D;
+		filteredSpiderSpeed += (speed - filteredSpiderSpeed) * response;
+		if (!walking && filteredSpiderSpeed < 0.025D) {
+			lastSpeed = filteredSpiderSpeed;
+			return 0.0D;
+		}
+		double movementLevel = smoothStep(0.025D, 0.12D, filteredSpiderSpeed);
+		double speedLevel = smoothStep(0.10D, 1.15D, filteredSpiderSpeed);
+		double poweredBoost = vehicle.getVariant().powered() && vehicle.isHighGear()
+				? 0.035D * smoothStep(0.12D, 0.52D, filteredSpiderSpeed)
+				: 0.0D;
+		lastSpeed = filteredSpiderSpeed;
+		return clamp((speedLevel * 0.19D + poweredBoost) * movementLevel, 0.0D, 0.26D);
+	}
+
+	private static void resetSpiderFovTracking() {
+		lastSpiderFovVehicleId = Integer.MIN_VALUE;
+		lastSpiderGaitPhase = 0.0F;
+		filteredSpiderSpeed = 0.0D;
+		spiderMotionHoldUntilNanos = 0L;
 	}
 
 	private static double accelerationBoost(double speed) {
@@ -269,6 +318,7 @@ public final class MinecartFovEffects {
 		lastMovementSignature = Integer.MIN_VALUE;
 		lastSpeed = 0.0D;
 		stateChangeResetUntilNanos = 0L;
+		resetSpiderFovTracking();
 	}
 
 	private record RailState(boolean powered, boolean descending, boolean verticalDescent, Direction face, Direction travel) {

@@ -45,8 +45,11 @@ public final class RingVehicleItem extends Item {
 		Vec3d forward = new Vec3d(-Math.sin(Math.toRadians(yaw)), 0.0D, Math.cos(Math.toRadians(yaw)));
 		int ringLevel = ringLevel(context.getStack());
 		boolean discMode = discMode(context.getStack());
+		boolean spiderMode = spiderMode(context.getStack());
 		Box box = discMode
 				? RingVehicleEntity.discCollisionBounds(spawn, ringLevel)
+				: spiderMode
+						? RingVehicleEntity.spiderCollisionBounds(spawn, ringLevel)
 				: RingVehicleEntity.collisionBounds(
 						spawn, Vec3d.of(net.minecraft.util.math.Direction.UP.getVector()), forward, ringLevel);
 		if (!context.getWorld().isSpaceEmpty(null, box)) {
@@ -71,6 +74,7 @@ public final class RingVehicleItem extends Item {
 				return ActionResult.FAIL;
 			}
 			vehicle.refreshPositionAndAngles(spawn.x, spawn.y, spawn.z, context.getPlayerYaw(), 0.0F);
+			vehicle.prepareSpiderPlacement();
 			serverWorld.spawnEntity(vehicle);
 			if (context.getPlayer() == null || !context.getPlayer().getAbilities().creativeMode) {
 				context.getStack().decrement(1);
@@ -116,6 +120,11 @@ public final class RingVehicleItem extends Item {
 							? Text.translatable("item.minecraft.mace")
 							: Text.translatable("item.minecraft.heavy_core")).formatted(Formatting.RED));
 		}
+		ItemStack ammunition = installed.get(RingVehicleInventory.ABILITY_AMMO);
+		if (SpiderAmmoType.isAmmo(ammunition)) {
+			tooltip.add(Text.translatable("tooltip.echominecart.ring_vehicle_spider_ammo",
+					ammunition.getName(), ammunition.getCount()).formatted(Formatting.AQUA));
+		}
 		if (variant.powered()) {
 			boolean clutchInstalled = installed.get(RingVehicleInventory.CLUTCH_SLOT)
 					.isOf(EchoMinecartRegistry.REINFORCED_CLUTCH);
@@ -134,6 +143,16 @@ public final class RingVehicleItem extends Item {
 			tooltip.add(Text.translatable("tooltip.echominecart.ring_vehicle_disc_mode", minecartCount)
 					.formatted(Formatting.AQUA));
 		}
+		if (spiderMode(stack)) {
+			tooltip.add(Text.translatable("tooltip.echominecart.ring_vehicle_spider_mode").formatted(Formatting.DARK_GREEN));
+			tooltip.add(Text.translatable("tooltip.echominecart.ring_vehicle_spider_legs",
+					Integer.bitCount(spiderLegMask(stack)), RingVehicleEntity.SPIDER_LEG_COUNT)
+					.formatted(Formatting.GRAY));
+			if (spiderPendingLeg(stack) >= 0) {
+				tooltip.add(Text.translatable("tooltip.echominecart.ring_vehicle_spider_leg_pending")
+						.formatted(Formatting.YELLOW));
+			}
+		}
 		if (lavaProof) {
 			tooltip.add(Text.translatable("tooltip.echominecart.ring_vehicle_lava_proof"));
 		}
@@ -149,5 +168,34 @@ public final class RingVehicleItem extends Item {
 	public static boolean discMode(ItemStack stack) {
 		NbtComponent component = stack.get(DataComponentTypes.CUSTOM_DATA);
 		return component != null && component.copyNbt().getBoolean("DiscMode");
+	}
+
+	public static boolean spiderMode(ItemStack stack) {
+		NbtComponent component = stack.get(DataComponentTypes.CUSTOM_DATA);
+		return component != null && component.copyNbt().getBoolean("SpiderMode");
+	}
+
+	public static int spiderLegMask(ItemStack stack) {
+		NbtComponent component = stack.get(DataComponentTypes.CUSTOM_DATA);
+		if (component == null) {
+			return 0;
+		}
+		var data = component.copyNbt();
+		return data.contains("SpiderLegMask")
+				? data.getInt("SpiderLegMask") & ((1 << RingVehicleEntity.SPIDER_LEG_COUNT) - 1)
+				: (1 << RingVehicleEntity.SPIDER_LEG_COUNT) - 1;
+	}
+
+	public static int spiderPendingLeg(ItemStack stack) {
+		NbtComponent component = stack.get(DataComponentTypes.CUSTOM_DATA);
+		if (component == null) {
+			return -1;
+		}
+		var data = component.copyNbt();
+		if (!data.contains("SpiderPendingLeg")) {
+			return -1;
+		}
+		int pending = data.getInt("SpiderPendingLeg");
+		return pending >= 0 && pending < RingVehicleEntity.SPIDER_LEG_COUNT ? pending : -1;
 	}
 }

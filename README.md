@@ -42,7 +42,7 @@ EchoMinecart 将矿车从单一地面交通工具扩展为可跨越地面、墙�
 | Minecraft | `1.21.1` |
 | 模组加载器 | Fabric |
 | 运行环境 | 客户端与服务端均需安装 |
-| 主要依赖 | Fabric API |
+| 主要依赖 | Fabric API、Satin API（随模组 JAR 内嵌） |
 | Java | 21 |
 | 稳定性 | 活跃开发、人工回归测试中 |
 | 开源协议 | MIT |
@@ -211,7 +211,7 @@ EchoMinecart 将矿车从单一地面交通工具扩展为可跨越地面、墙�
 | Fabric API | 当前开发环境使用 `0.116.13+1.21.1` |
 | Java | 21 |
 
-SQLite JDBC 已打包进构建产物，不需要单独安装。
+SQLite JDBC 与 Satin API `2.0.0` 已打包进构建产物，不需要单独安装。
 
 ### 安装步骤
 
@@ -352,6 +352,7 @@ build/libs/echo-minecart-1.0.0-sources.jar
 - Java 21。
 - Mixin 用于接入原版矿车、相机、容器和实体行为。
 - Data Tracker 与自定义网络载荷用于载具状态同步。
+- Satin API `2.0.0` 与 GLSL 后处理用于蜘蛛武器的开火视角反馈。
 - `PersistentState` 用于建筑搬运任务恢复。
 - NBT/数据组件用于环形全地形矿车工具、模块、尺寸和储物持久化。
 - 内置 SQLite JDBC 用于箱中箱内容存储。
@@ -430,5 +431,7 @@ src/main/java/com/xc/echominecart
 ## 许可证
 
 本项目以 [MIT License](LICENSE) 开源。你可以使用、复制、修改、合并、发布和分发本项目，但必须保留原始版权声明和许可证文本。
+
+发布 JAR 内嵌的 Satin API 由 Ladysnake 维护，并继续按照 [LGPL-3.0-or-later](https://github.com/Ladysnake/Satin/blob/1.21/LICENSE) 授权；其许可证文本随嵌套依赖一同分发。
 
 Minecraft、Fabric 及相关名称、商标和游戏资源归各自权利人所有。EchoMinecart 是非官方社区项目，与 Mojang Studios 或 Microsoft 无隶属、授权或背书关系。

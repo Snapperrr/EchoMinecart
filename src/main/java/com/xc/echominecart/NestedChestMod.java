@@ -12,6 +12,7 @@ import com.xc.echominecart.network.NestedChestSortPayload;
 import com.xc.echominecart.network.NestedChestSyncPayload;
 import com.xc.echominecart.network.SpeedRailOpenPayload;
 import com.xc.echominecart.network.SpeedRailSetPayload;
+import com.xc.echominecart.network.SpiderWeaponFiredPayload;
 import com.xc.echominecart.network.TripSyncPayload;
 import com.xc.echominecart.network.RingVehicleActionPayload;
 import com.xc.echominecart.network.RingVehicleAbilityPayload;
@@ -110,6 +111,7 @@ public class NestedChestMod implements ModInitializer {
 		PayloadTypeRegistry.playS2C().register(CarriageSyncPayload.ID, CarriageSyncPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(TripSyncPayload.ID, TripSyncPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(SpeedRailOpenPayload.ID, SpeedRailOpenPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(SpiderWeaponFiredPayload.ID, SpiderWeaponFiredPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(SpeedRailSetPayload.ID, SpeedRailSetPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(RingVehicleActionPayload.ID, RingVehicleActionPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(RingVehicleAbilityPayload.ID, RingVehicleAbilityPayload.CODEC);
@@ -146,6 +148,16 @@ public class NestedChestMod implements ModInitializer {
 				vehicle.openInventory(player);
 			} else if (payload.action() == RingVehicleActionPayload.TOGGLE_MINING) {
 				vehicle.toggleMiningMode(player);
+			} else if (payload.action() == RingVehicleActionPayload.TOGGLE_MOMENTUM_STORAGE) {
+				vehicle.toggleMomentumStorage(player);
+			} else if (payload.action() == RingVehicleActionPayload.REMOVE_DISC_MINECART) {
+				vehicle.removeDiscMinecart(player);
+			} else if (payload.action() == RingVehicleActionPayload.TOGGLE_SPIDER_EXPLORE_UP) {
+				vehicle.toggleSpiderExplorationMode(player, RingVehicleEntity.SPIDER_EXPLORATION_UP);
+			} else if (payload.action() == RingVehicleActionPayload.TOGGLE_SPIDER_EXPLORE_DOWN) {
+				vehicle.toggleSpiderExplorationMode(player, RingVehicleEntity.SPIDER_EXPLORATION_DOWN);
+			} else if (payload.action() == RingVehicleActionPayload.FIRE_SPIDER_WEAPON) {
+				vehicle.fireSpiderWeapon(player);
 			}
 		});
 	}

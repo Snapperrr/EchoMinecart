@@ -2,6 +2,7 @@ package com.xc.echominecart.mixin;
 
 import com.xc.echominecart.trip.TripManager;
 import com.xc.echominecart.ringvehicle.RingVehicleEntity;
+import com.xc.echominecart.ringvehicle.SpiderProjectileEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.registry.tag.DamageTypeTags;
@@ -16,6 +17,13 @@ public abstract class LivingEntityDamageMixin {
 	@Inject(method = "damage", at = @At("HEAD"), cancellable = true)
 	private void echominecart$releaseRailTrip(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
 		LivingEntity living = (LivingEntity) (Object) this;
+		if (living.getVehicle() instanceof RingVehicleEntity vehicle
+				&& vehicle.isSpiderMode()
+				&& (source.getSource() instanceof SpiderProjectileEntity
+						|| source.getAttacker() instanceof SpiderProjectileEntity)) {
+			cir.setReturnValue(false);
+			return;
+		}
 		if (source.isIn(DamageTypeTags.IS_FALL) && living.getVehicle() instanceof RingVehicleEntity) {
 			living.fallDistance = 0.0F;
 			cir.setReturnValue(false);

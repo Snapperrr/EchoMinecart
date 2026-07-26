@@ -35,12 +35,23 @@ public final class RingVehicleRenderer extends EntityRenderer<RingVehicleEntity>
 		matrices.translate(takeoffShake.x, takeoffShake.y, takeoffShake.z);
 		matrices.translate(0.0D, entity.getVisualRenderCenterHeight(tickDelta) + entity.getRideVisualBob(tickDelta), 0.0D);
 		matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-entity.getVisualBodyYaw(tickDelta)));
+		if (entity.isSpiderMode()) {
+			float recoil = entity.getSpiderWeaponRecoil(tickDelta);
+			matrices.translate(0.0F, recoil * 0.035F,
+					-recoil * (0.24F + entity.getRingLevel() * 0.07F));
+			matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-recoil * 3.5F));
+		}
 		float discBlend = entity.getDiscVisualBlend(tickDelta);
-		float visualRoll = MathHelper.lerp(discBlend, entity.getTurnVisualLean(tickDelta), 90.0F);
+		float visualRoll = entity.isSpiderMode()
+				? 0.0F
+				: MathHelper.lerp(discBlend, entity.getTurnVisualLean(tickDelta), 90.0F);
 		matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(visualRoll));
-		modelRenderer.render(entity.getVariant(), entity.isLavaProof(), entity.hasChestAttached(), entity.getRingLevel(),
-				entity.getVisualRingAngle(tickDelta), entity.getVisualInnerCartAngle(tickDelta),
-				entity.isDiscMode(), entity.getDiscExtraMinecarts(),
+		float ringAnimation = entity.isSpiderMode()
+				? entity.getSpiderGaitPhase() * 360.0F
+				: entity.getVisualRingAngle(tickDelta);
+		modelRenderer.render(entity, tickDelta, entity.getVariant(), entity.isLavaProof(), entity.hasChestAttached(), entity.getRingLevel(),
+				ringAnimation, entity.getVisualInnerCartAngle(tickDelta),
+				entity.isSpiderMode(), entity.isDiscMode(), entity.getDiscExtraMinecarts(),
 				matrices, vertexConsumers, light);
 		matrices.pop();
 	}

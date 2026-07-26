@@ -12,19 +12,22 @@ import net.minecraft.util.collection.DefaultedList;
 /** Fixed-layout module inventory with versioned migration and overflow recovery. */
 public final class RingVehicleInventory implements Inventory {
 	public static final int TOOL_SLOTS = 3;
-	public static final int ABILITY_SLOTS = 4;
+	public static final int ABILITY_SLOTS = 5;
 	public static final int ABILITY_CHEST = TOOL_SLOTS;
 	public static final int ABILITY_JUMP = TOOL_SLOTS + 1;
 	public static final int ABILITY_DASH = TOOL_SLOTS + 2;
 	public static final int ABILITY_SMASH = TOOL_SLOTS + 3;
+	public static final int ABILITY_AMMO = TOOL_SLOTS + 4;
 	public static final int CLUTCH_SLOT = TOOL_SLOTS + ABILITY_SLOTS;
 	public static final int STORAGE_START = CLUTCH_SLOT + 1;
 	public static final int STORAGE_SLOTS = 27;
 	public static final int SIZE = STORAGE_START + STORAGE_SLOTS;
-	public static final int DATA_VERSION = 4;
+	public static final int DATA_VERSION = 5;
+	private static final int PREVIOUS_ABILITY_SLOTS = 4;
+	private static final int VERSION_4_SIZE = TOOL_SLOTS + PREVIOUS_ABILITY_SLOTS + 1 + STORAGE_SLOTS;
 	private static final int OLD_TOOL_SLOTS = 4;
-	private static final int VERSION_3_SIZE = OLD_TOOL_SLOTS + ABILITY_SLOTS + 1 + STORAGE_SLOTS;
-	private static final int VERSION_2_SIZE = OLD_TOOL_SLOTS + ABILITY_SLOTS + STORAGE_SLOTS;
+	private static final int VERSION_3_SIZE = OLD_TOOL_SLOTS + PREVIOUS_ABILITY_SLOTS + 1 + STORAGE_SLOTS;
+	private static final int VERSION_2_SIZE = OLD_TOOL_SLOTS + PREVIOUS_ABILITY_SLOTS + STORAGE_SLOTS;
 	private static final int LEGACY_SIZE = OLD_TOOL_SLOTS + STORAGE_SLOTS;
 
 	private final RingVehicleEntity vehicle;
@@ -65,14 +68,24 @@ public final class RingVehicleInventory implements Inventory {
 			Inventories.readNbt(nbt, result, registries);
 			return new LoadedInventory(result, ItemStack.EMPTY);
 		}
+		if (version >= 4) {
+			DefaultedList<ItemStack> previous = DefaultedList.ofSize(VERSION_4_SIZE, ItemStack.EMPTY);
+			Inventories.readNbt(nbt, previous, registries);
+			copyRange(previous, 0, result, 0, TOOL_SLOTS);
+			copyRange(previous, TOOL_SLOTS, result, TOOL_SLOTS, PREVIOUS_ABILITY_SLOTS);
+			result.set(CLUTCH_SLOT, previous.get(TOOL_SLOTS + PREVIOUS_ABILITY_SLOTS));
+			copyRange(previous, TOOL_SLOTS + PREVIOUS_ABILITY_SLOTS + 1,
+					result, STORAGE_START, STORAGE_SLOTS);
+			return new LoadedInventory(result, ItemStack.EMPTY);
+		}
 
 		if (version >= 3) {
 			DefaultedList<ItemStack> previous = DefaultedList.ofSize(VERSION_3_SIZE, ItemStack.EMPTY);
 			Inventories.readNbt(nbt, previous, registries);
 			copyOldTools(previous, result);
-			copyRange(previous, OLD_TOOL_SLOTS, result, TOOL_SLOTS, ABILITY_SLOTS);
-			result.set(CLUTCH_SLOT, previous.get(OLD_TOOL_SLOTS + ABILITY_SLOTS));
-			copyRange(previous, OLD_TOOL_SLOTS + ABILITY_SLOTS + 1,
+			copyRange(previous, OLD_TOOL_SLOTS, result, TOOL_SLOTS, PREVIOUS_ABILITY_SLOTS);
+			result.set(CLUTCH_SLOT, previous.get(OLD_TOOL_SLOTS + PREVIOUS_ABILITY_SLOTS));
+			copyRange(previous, OLD_TOOL_SLOTS + PREVIOUS_ABILITY_SLOTS + 1,
 					result, STORAGE_START, STORAGE_SLOTS);
 			return new LoadedInventory(result, previous.get(OLD_TOOL_SLOTS - 1));
 		}
@@ -81,8 +94,8 @@ public final class RingVehicleInventory implements Inventory {
 			DefaultedList<ItemStack> previous = DefaultedList.ofSize(VERSION_2_SIZE, ItemStack.EMPTY);
 			Inventories.readNbt(nbt, previous, registries);
 			copyOldTools(previous, result);
-			copyRange(previous, OLD_TOOL_SLOTS, result, TOOL_SLOTS, ABILITY_SLOTS);
-			copyRange(previous, OLD_TOOL_SLOTS + ABILITY_SLOTS,
+			copyRange(previous, OLD_TOOL_SLOTS, result, TOOL_SLOTS, PREVIOUS_ABILITY_SLOTS);
+			copyRange(previous, OLD_TOOL_SLOTS + PREVIOUS_ABILITY_SLOTS,
 					result, STORAGE_START, STORAGE_SLOTS);
 			return new LoadedInventory(result, previous.get(OLD_TOOL_SLOTS - 1));
 		}

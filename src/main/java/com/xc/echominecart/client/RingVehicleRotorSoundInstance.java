@@ -22,7 +22,8 @@ public final class RingVehicleRotorSoundInstance extends MovingSoundInstance {
 	public RingVehicleRotorSoundInstance(RingVehicleEntity vehicle) {
 		super(SoundEvents.ITEM_ELYTRA_FLYING, SoundCategory.NEUTRAL, SoundInstance.createRandom());
 		this.vehicle = vehicle;
-		this.startedWithRotor = vehicle.isDiscMode() && Math.abs(vehicle.getFlightRotorSpeed()) > 0.45F;
+		this.startedWithRotor = !vehicle.isSpiderMode() && vehicle.isDiscMode()
+				&& Math.abs(vehicle.getFlightRotorSpeed()) > 0.45F;
 		this.repeat = true;
 		this.repeatDelay = 0;
 		float initialRotorLevel = rotorLevel();
@@ -34,7 +35,7 @@ public final class RingVehicleRotorSoundInstance extends MovingSoundInstance {
 
 	@Override
 	public boolean canPlay() {
-		return startedWithRotor && !vehicle.isSilent();
+		return startedWithRotor && !vehicle.isSpiderMode() && !vehicle.isSilent();
 	}
 
 	@Override
@@ -44,7 +45,7 @@ public final class RingVehicleRotorSoundInstance extends MovingSoundInstance {
 
 	@Override
 	public void tick() {
-		if (vehicle.isRemoved()) {
+		if (vehicle.isRemoved() || vehicle.isSpiderMode()) {
 			setDone();
 			return;
 		}

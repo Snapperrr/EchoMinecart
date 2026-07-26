@@ -39,6 +39,10 @@ public final class RingVehicleMovingSoundInstance extends MovingSoundInstance {
 			return;
 		}
 		updatePosition();
+		if (vehicle.isSpiderMode()) {
+			setDone();
+			return;
+		}
 		double linearSpeed = vehicle.getVelocity().length();
 		double innerCartSpeed = Math.toRadians(Math.abs(vehicle.getInnerCartAngularSpeed()))
 				* vehicle.getInnerCartOrbitRadius();

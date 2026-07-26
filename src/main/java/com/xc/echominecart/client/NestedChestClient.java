@@ -10,6 +10,7 @@ import com.xc.echominecart.client.screen.RingVehicleSettingsScreen;
 import com.xc.echominecart.network.CarriageSyncPayload;
 import com.xc.echominecart.network.NestedChestSyncPayload;
 import com.xc.echominecart.network.SpeedRailOpenPayload;
+import com.xc.echominecart.network.SpiderWeaponFiredPayload;
 import com.xc.echominecart.network.TripSyncPayload;
 import com.xc.echominecart.network.RingVehicleActionPayload;
 import com.xc.echominecart.network.RingVehicleAbilityPayload;
@@ -55,6 +56,10 @@ public class NestedChestClient implements ClientModInitializer {
 	private static KeyBinding ringDashKeyBinding;
 	private static KeyBinding ringSmashKeyBinding;
 	private static KeyBinding ringClutchKeyBinding;
+	private static KeyBinding ringMomentumStorageKeyBinding;
+	private static KeyBinding spiderExploreUpKeyBinding;
+	private static KeyBinding spiderExploreDownKeyBinding;
+	private static KeyBinding spiderWeaponKeyBinding;
 	private static final int JUMP_HUD_HIDDEN = 0;
 	private static final int JUMP_HUD_CHARGING = 1;
 	private static final int JUMP_HUD_RELEASING = 2;
@@ -91,6 +96,7 @@ public class NestedChestClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		NestedChestClientConfig.initialize();
+		SpiderWeaponScreenEffect.initialize();
 		LateralRailModelLoader.initialize();
 		registerSettingsControls();
 		BlockRenderLayerMap.INSTANCE.putBlocks(
@@ -101,6 +107,7 @@ public class NestedChestClient implements ClientModInitializer {
 		HandledScreens.register(NestedChestMod.CONNECTED_CHEST_SCREEN_HANDLER, ConnectedChestScreen::new);
 		HandledScreens.register(NestedChestMod.RING_VEHICLE_SCREEN_HANDLER, RingVehicleScreen::new);
 		EntityRendererRegistry.register(EchoMinecartRegistry.RING_VEHICLE_ENTITY, RingVehicleRenderer::new);
+		EntityRendererRegistry.register(EchoMinecartRegistry.SPIDER_PROJECTILE_ENTITY, SpiderProjectileRenderer::new);
 		ClientEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			if (entity instanceof RingVehicleEntity vehicle) {
 				MinecraftClient.getInstance().getSoundManager().play(new RingVehicleMovingSoundInstance(vehicle));
@@ -120,6 +127,11 @@ public class NestedChestClient implements ClientModInitializer {
 		BuiltinItemRendererRegistry.INSTANCE.register(EchoMinecartRegistry.RING_POWERED_RAIL_VEHICLE, ringVehicleItemRenderer);
 		BuiltinItemRendererRegistry.INSTANCE.register(EchoMinecartRegistry.LAVA_PROOF_RING_RAIL_VEHICLE, ringVehicleItemRenderer);
 		BuiltinItemRendererRegistry.INSTANCE.register(EchoMinecartRegistry.LAVA_PROOF_RING_POWERED_RAIL_VEHICLE, ringVehicleItemRenderer);
+		SpiderLegItemRenderer spiderLegItemRenderer = new SpiderLegItemRenderer(MinecraftClient.getInstance());
+		BuiltinItemRendererRegistry.INSTANCE.register(EchoMinecartRegistry.SPIDER_RAIL_LEG, spiderLegItemRenderer);
+		BuiltinItemRendererRegistry.INSTANCE.register(EchoMinecartRegistry.SPIDER_POWERED_RAIL_LEG, spiderLegItemRenderer);
+		BuiltinItemRendererRegistry.INSTANCE.register(EchoMinecartRegistry.LAVA_PROOF_SPIDER_RAIL_LEG, spiderLegItemRenderer);
+		BuiltinItemRendererRegistry.INSTANCE.register(EchoMinecartRegistry.LAVA_PROOF_SPIDER_POWERED_RAIL_LEG, spiderLegItemRenderer);
 		ClientPlayNetworking.registerGlobalReceiver(NestedChestSyncPayload.ID, (payload, context) ->
 				context.client().execute(() -> NestedChestOverlay.sync(payload.path(), payload.stacks())));
 		ClientPlayNetworking.registerGlobalReceiver(CarriageSyncPayload.ID, (payload, context) ->
@@ -133,6 +145,9 @@ public class NestedChestClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(SpeedRailOpenPayload.ID, (payload, context) ->
 				context.client().execute(() -> context.client().setScreen(new SpeedRailSettingsScreen(
 						context.client().currentScreen, BlockPos.fromLong(payload.pos()), payload.speed()))));
+		ClientPlayNetworking.registerGlobalReceiver(SpiderWeaponFiredPayload.ID, (payload, context) ->
+				context.client().execute(() -> SpiderWeaponScreenEffect.trigger(
+						payload.intensity(), payload.explosive(), payload.color())));
 	}
 
 	private static void registerSettingsControls() {
@@ -165,6 +180,26 @@ public class NestedChestClient implements ClientModInitializer {
 				"key.echominecart.ring_vehicle_clutch",
 				InputUtil.Type.KEYSYM,
 				GLFW.GLFW_KEY_LEFT_ALT,
+				"category.echominecart"));
+		ringMomentumStorageKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key.echominecart.ring_vehicle_momentum_storage",
+				InputUtil.Type.KEYSYM,
+				GLFW.GLFW_KEY_B,
+				"category.echominecart"));
+		spiderExploreUpKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key.echominecart.spider_explore_up",
+				InputUtil.Type.KEYSYM,
+				GLFW.GLFW_KEY_PAGE_UP,
+				"category.echominecart"));
+		spiderExploreDownKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key.echominecart.spider_explore_down",
+				InputUtil.Type.KEYSYM,
+				GLFW.GLFW_KEY_PAGE_DOWN,
+				"category.echominecart"));
+		spiderWeaponKeyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+				"key.echominecart.spider_weapon",
+				InputUtil.Type.KEYSYM,
+				GLFW.GLFW_KEY_C,
 				"category.echominecart"));
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			maintainRotorSounds(client);
@@ -307,6 +342,30 @@ public class NestedChestClient implements ClientModInitializer {
 				while (ringInventoryKeyBinding.wasPressed()) {
 					ClientPlayNetworking.send(new RingVehicleActionPayload(vehicle.getId(), RingVehicleActionPayload.OPEN_INVENTORY));
 				}
+				while (ringMomentumStorageKeyBinding.wasPressed()) {
+					if (client.currentScreen == null) {
+						ClientPlayNetworking.send(new RingVehicleActionPayload(vehicle.getId(),
+								RingVehicleActionPayload.TOGGLE_MOMENTUM_STORAGE));
+					}
+				}
+				while (spiderExploreUpKeyBinding.wasPressed()) {
+					if (client.currentScreen == null && vehicle.isSpiderMode()) {
+						ClientPlayNetworking.send(new RingVehicleActionPayload(vehicle.getId(),
+								RingVehicleActionPayload.TOGGLE_SPIDER_EXPLORE_UP));
+					}
+				}
+				while (spiderExploreDownKeyBinding.wasPressed()) {
+					if (client.currentScreen == null && vehicle.isSpiderMode()) {
+						ClientPlayNetworking.send(new RingVehicleActionPayload(vehicle.getId(),
+								RingVehicleActionPayload.TOGGLE_SPIDER_EXPLORE_DOWN));
+					}
+				}
+				while (spiderWeaponKeyBinding.wasPressed()) {
+					if (client.currentScreen == null && vehicle.isSpiderMode()) {
+						ClientPlayNetworking.send(new RingVehicleActionPayload(vehicle.getId(),
+								RingVehicleActionPayload.FIRE_SPIDER_WEAPON));
+					}
+				}
 			} else {
 				ringJumpChargeTicks = 0;
 				ringJumpWasPressed = false;
@@ -376,6 +435,11 @@ public class NestedChestClient implements ClientModInitializer {
 			Map.Entry<Integer, RingVehicleRotorSoundInstance> entry = iterator.next();
 			if (!(client.world.getEntityById(entry.getKey()) instanceof RingVehicleEntity vehicle)
 					|| vehicle.isRemoved()) {
+				client.getSoundManager().stop(entry.getValue());
+				iterator.remove();
+				continue;
+			}
+			if (vehicle.isSpiderMode()) {
 				client.getSoundManager().stop(entry.getValue());
 				iterator.remove();
 				continue;

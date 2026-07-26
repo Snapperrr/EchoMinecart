@@ -13,6 +13,7 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -56,6 +57,14 @@ public abstract class LivingEntityRendererMixin {
 			Vec3d seatCorrection = ringVehicle.getVisualPassengerAnchor(tickDelta)
 					.subtract(entity.getLerpedPos(tickDelta));
 			matrices.translate(seatCorrection.x, seatCorrection.y, seatCorrection.z);
+			if (ringVehicle.isSpiderMode()) {
+				Vec3d bodyNormal = ringVehicle.getSpiderBodyNormal(tickDelta);
+				matrices.multiply(new Quaternionf().rotationTo(
+						new Vector3f(0.0F, 1.0F, 0.0F),
+						new Vector3f((float) bodyNormal.x, (float) bodyNormal.y, (float) bodyNormal.z)));
+				matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180.0F - bodyYaw));
+				return;
+			}
 			if (ringVehicle.isDiscMode()) {
 				Quaternionf discTilt = new Quaternionf().rotationAxis((float) Math.toRadians(90.0D),
 						(float) heading.x, (float) heading.y, (float) heading.z);

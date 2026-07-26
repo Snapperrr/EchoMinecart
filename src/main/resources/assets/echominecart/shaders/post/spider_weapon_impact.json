@@ -1,0 +1,17 @@
+{
+  "targets": [
+    "spider_weapon_swap"
+  ],
+  "passes": [
+    {
+      "name": "echominecart:spider_weapon_impact",
+      "intarget": "minecraft:main",
+      "outtarget": "spider_weapon_swap"
+    },
+    {
+      "name": "minecraft:blit",
+      "intarget": "spider_weapon_swap",
+      "outtarget": "minecraft:main"
+    }
+  ]
+}

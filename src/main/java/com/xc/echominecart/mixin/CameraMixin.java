@@ -104,6 +104,29 @@ public abstract class CameraMixin {
 				}
 				return;
 			}
+			if (ringVehicle.isSpiderMode()) {
+				Vec3d bodyNormal = ringVehicle.getSpiderBodyNormal(tickDelta);
+				Quaternionf bodyTilt = new Quaternionf().rotationTo(
+						new Vector3f(0.0F, 1.0F, 0.0F),
+						new Vector3f((float) bodyNormal.x, (float) bodyNormal.y, (float) bodyNormal.z));
+				Quaternionf originalRotation = new Quaternionf(rotation);
+				rotation.set(bodyTilt).mul(originalRotation);
+				Vec3d seatCorrection = ringVehicle.getVisualPassengerAnchor(tickDelta)
+						.subtract(focusedEntity.getLerpedPos(tickDelta));
+				if (thirdPerson) {
+					setPos(ringVehicle.getVisualCenter(tickDelta));
+					float scale = focusedEntity instanceof LivingEntity living ? living.getScale() : 1.0F;
+					moveBy(-clipToSpace(4.0F * scale), 0.0F, 0.0F);
+				} else {
+					double eyeHeight = Math.max(0.0D, focusedEntity.getEyeY() - focusedEntity.getY());
+					Vector3f tiltedEyeVector = bodyTilt.transform(new Vector3f(0.0F, (float) eyeHeight, 0.0F));
+					Vec3d eyeCorrection = new Vec3d(tiltedEyeVector.x, tiltedEyeVector.y, tiltedEyeVector.z)
+							.subtract(0.0D, eyeHeight, 0.0D);
+					setPos(getPos().add(seatCorrection).add(eyeCorrection));
+				}
+				refreshPlanes();
+				return;
+			}
 			if (!thirdPerson) {
 				float orbitAngle = ringVehicle.getVisualInnerCartAngle(tickDelta);
 				Vec3d heading = bodyHeading(ringVehicle.getVisualBodyYaw(tickDelta));

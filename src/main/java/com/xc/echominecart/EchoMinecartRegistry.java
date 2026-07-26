@@ -13,6 +13,9 @@ import com.xc.echominecart.ringvehicle.RingVehicleEntity;
 import com.xc.echominecart.ringvehicle.RingVehicleExpansionRecipe;
 import com.xc.echominecart.ringvehicle.RingVehicleItem;
 import com.xc.echominecart.ringvehicle.RingVehicleVariant;
+import com.xc.echominecart.ringvehicle.SpiderRingVehicleRecipe;
+import com.xc.echominecart.ringvehicle.SpiderLegItem;
+import com.xc.echominecart.ringvehicle.SpiderProjectileEntity;
 import com.xc.echominecart.trip.TripManager;
 import net.fabricmc.fabric.api.networking.v1.EntityTrackingEvents;
 import com.xc.echominecart.rail.OmniRailBlock;
@@ -82,6 +85,14 @@ public final class EchoMinecartRegistry {
 	public static final RailRepairToolItem RAIL_REPAIR_TOOL = registerItem("rail_repair_tool", new RailRepairToolItem(new Item.Settings().maxCount(1)));
 	public static final Item REINFORCED_CLUTCH = registerItem("reinforced_clutch",
 			new ReinforcedClutchItem(new Item.Settings().maxDamage(360)));
+	public static final SpiderLegItem SPIDER_RAIL_LEG = registerItem("spider_rail_leg",
+			new SpiderLegItem(RingVehicleVariant.RAIL, false, new Item.Settings().maxCount(16)));
+	public static final SpiderLegItem SPIDER_POWERED_RAIL_LEG = registerItem("spider_powered_rail_leg",
+			new SpiderLegItem(RingVehicleVariant.POWERED, false, new Item.Settings().maxCount(16)));
+	public static final SpiderLegItem LAVA_PROOF_SPIDER_RAIL_LEG = registerItem("lava_proof_spider_rail_leg",
+			new SpiderLegItem(RingVehicleVariant.RAIL, true, new Item.Settings().maxCount(16).fireproof()));
+	public static final SpiderLegItem LAVA_PROOF_SPIDER_POWERED_RAIL_LEG = registerItem("lava_proof_spider_powered_rail_leg",
+			new SpiderLegItem(RingVehicleVariant.POWERED, true, new Item.Settings().maxCount(16).fireproof()));
 	public static final EntityType<RingVehicleEntity> RING_VEHICLE_ENTITY = Registry.register(
 			Registries.ENTITY_TYPE,
 			Identifier.of(NestedChestMod.MOD_ID, "ring_vehicle"),
@@ -89,6 +100,15 @@ public final class EchoMinecartRegistry {
 					.dimensions(RingVehicleEntity.SIZE, RingVehicleEntity.SIZE)
 					.eyeHeight(0.85F)
 					.maxTrackingRange(12)
+					.trackingTickInterval(1)
+					.alwaysUpdateVelocity(true)
+					.build());
+	public static final EntityType<SpiderProjectileEntity> SPIDER_PROJECTILE_ENTITY = Registry.register(
+			Registries.ENTITY_TYPE,
+			Identifier.of(NestedChestMod.MOD_ID, "spider_projectile"),
+			EntityType.Builder.<SpiderProjectileEntity>create(SpiderProjectileEntity::new, SpawnGroup.MISC)
+					.dimensions(0.32F, 0.32F)
+					.maxTrackingRange(16)
 					.trackingTickInterval(1)
 					.alwaysUpdateVelocity(true)
 					.build());
@@ -108,6 +128,10 @@ public final class EchoMinecartRegistry {
 			Registries.RECIPE_SERIALIZER,
 			Identifier.of(NestedChestMod.MOD_ID, "ring_vehicle_expansion"),
 			new SpecialRecipeSerializer<>(RingVehicleExpansionRecipe::new));
+	public static final RecipeSerializer<SpiderRingVehicleRecipe> SPIDER_RING_VEHICLE_RECIPE = Registry.register(
+			Registries.RECIPE_SERIALIZER,
+			Identifier.of(NestedChestMod.MOD_ID, "spider_ring_vehicle"),
+			new SpecialRecipeSerializer<>(SpiderRingVehicleRecipe::new));
 
 	private EchoMinecartRegistry() {
 	}
@@ -124,6 +148,10 @@ public final class EchoMinecartRegistry {
 			entries.add(BOOSTER_ROD);
 			entries.add(RAIL_REPAIR_TOOL);
 			entries.add(REINFORCED_CLUTCH);
+			entries.add(SPIDER_RAIL_LEG);
+			entries.add(SPIDER_POWERED_RAIL_LEG);
+			entries.add(LAVA_PROOF_SPIDER_RAIL_LEG);
+			entries.add(LAVA_PROOF_SPIDER_POWERED_RAIL_LEG);
 			entries.add(RING_RAIL_VEHICLE);
 			entries.add(RING_POWERED_RAIL_VEHICLE);
 			entries.add(LAVA_PROOF_RING_RAIL_VEHICLE);

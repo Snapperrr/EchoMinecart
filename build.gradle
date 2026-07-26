@@ -3,6 +3,13 @@ plugins {
 	id 'maven-publish'
 }
 
+repositories {
+	maven {
+		name = 'Modrinth'
+		url = 'https://api.modrinth.com/maven'
+	}
+}
+
 version = project.mod_version
 group = project.maven_group
 
@@ -15,6 +22,9 @@ dependencies {
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	modImplementation "maven.modrinth:satin-api:${project.satin_version}"
+	include "maven.modrinth:satin-api:${project.satin_version}"
+	compileOnly "org.apiguardian:apiguardian-api:1.0.0"
 	implementation "org.xerial:sqlite-jdbc:3.46.1.0"
 	include "org.xerial:sqlite-jdbc:3.46.1.0"
 }

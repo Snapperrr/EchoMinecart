@@ -3,6 +3,7 @@ package com.xc.echominecart.screen;
 import com.xc.echominecart.NestedChestMod;
 import com.xc.echominecart.ringvehicle.RingVehicleEntity;
 import com.xc.echominecart.ringvehicle.RingVehicleInventory;
+import com.xc.echominecart.ringvehicle.SpiderAmmoType;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.Entity;
@@ -39,20 +40,20 @@ public final class RingVehicleScreenHandler extends ScreenHandler {
 		for (int i = 0; i < RingVehicleInventory.ABILITY_SLOTS; i++) {
 			addSlot(new AbilitySlot(inventory, RingVehicleInventory.TOOL_SLOTS + i, 101 + i * 20, 51));
 		}
-		addSlot(new ClutchSlot(inventory, RingVehicleInventory.CLUTCH_SLOT, 185, 51));
+		addSlot(new ClutchSlot(inventory, RingVehicleInventory.CLUTCH_SLOT, 205, 51));
 		for (int row = 0; row < 3; row++) {
 			for (int column = 0; column < 9; column++) {
 				addSlot(new StorageSlot(inventory, RingVehicleInventory.STORAGE_START + row * 9 + column,
-						27 + column * 18, 106 + row * 18));
+						37 + column * 18, 106 + row * 18));
 			}
 		}
 		for (int row = 0; row < 3; row++) {
 			for (int column = 0; column < 9; column++) {
-				addSlot(new Slot(playerInventory, column + row * 9 + 9, 27 + column * 18, 183 + row * 18));
+				addSlot(new Slot(playerInventory, column + row * 9 + 9, 37 + column * 18, 183 + row * 18));
 			}
 		}
 		for (int column = 0; column < 9; column++) {
-			addSlot(new Slot(playerInventory, column, 27 + column * 18, 239));
+			addSlot(new Slot(playerInventory, column, 37 + column * 18, 239));
 		}
 	}
 
@@ -75,6 +76,18 @@ public final class RingVehicleScreenHandler extends ScreenHandler {
 
 	public boolean isMiningModeEnabled() {
 		return vehicle != null && vehicle.isMiningModeEnabled();
+	}
+
+	public boolean canRemoveDiscMinecart() {
+		return vehicle != null && vehicle.isDiscMode() && vehicle.getDiscExtraMinecarts() > 0;
+	}
+
+	public int discExtraMinecarts() {
+		return vehicle == null ? 0 : vehicle.getDiscExtraMinecarts();
+	}
+
+	public boolean isDiscMode() {
+		return vehicle != null && vehicle.isDiscMode();
 	}
 
 	public int vehicleId() {
@@ -154,6 +167,7 @@ public final class RingVehicleScreenHandler extends ScreenHandler {
 				case RingVehicleInventory.ABILITY_DASH -> stack.isOf(net.minecraft.item.Items.SUGAR);
 				case RingVehicleInventory.ABILITY_SMASH -> stack.isOf(net.minecraft.item.Items.HEAVY_CORE)
 						|| stack.isOf(net.minecraft.item.Items.MACE);
+				case RingVehicleInventory.ABILITY_AMMO -> SpiderAmmoType.isAmmo(stack);
 				default -> false;
 			};
 		}
@@ -161,7 +175,8 @@ public final class RingVehicleScreenHandler extends ScreenHandler {
 		@Override
 		public int getMaxItemCount() {
 			return getIndex() == RingVehicleInventory.ABILITY_JUMP
-					|| getIndex() == RingVehicleInventory.ABILITY_DASH ? 64 : 1;
+					|| getIndex() == RingVehicleInventory.ABILITY_DASH
+					|| getIndex() == RingVehicleInventory.ABILITY_AMMO ? 64 : 1;
 		}
 	}
 
@@ -192,6 +207,7 @@ public final class RingVehicleScreenHandler extends ScreenHandler {
 				|| stack.isOf(net.minecraft.item.Items.SUGAR)
 				|| stack.isOf(net.minecraft.item.Items.HEAVY_CORE)
 				|| stack.isOf(net.minecraft.item.Items.MACE)
+				|| SpiderAmmoType.isAmmo(stack)
 				|| stack.isOf(com.xc.echominecart.EchoMinecartRegistry.REINFORCED_CLUTCH);
 	}
 

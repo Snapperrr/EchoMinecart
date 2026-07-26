@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "OOO",
+    " L ",
+    "OOO"
+  ],
+  "key": {
+    "O": {
+      "item": "minecraft:obsidian"
+    },
+    "L": {
+      "item": "echominecart:spider_powered_rail_leg"
+    }
+  },
+  "result": {
+    "id": "echominecart:lava_proof_spider_powered_rail_leg",
+    "count": 1
+  }
+}
