@@ -105,7 +105,8 @@ final class RingVehicleModelRenderer {
 						widths[index], bodyUp, radial, matrices, vertexConsumers, light);
 			}
 		}
-		renderSpiderIronConnector(points[0], points[2], 0.52F, bodyUp, radial,
+		renderSpiderIronConnector(points[0], points[2].subtract(radial.multiply(0.22D)),
+				0.34F, bodyUp, radial,
 				matrices, vertexConsumers, light);
 		for (int index = 2; index < points.length - 1; index++) {
 			double startTrim = switch (index) {
@@ -316,6 +317,11 @@ final class RingVehicleModelRenderer {
 			Vec3d foot = root.lerp(extendedFoot, deploy);
 			Vec3d radial = rotate(bodyTilt, localRadial).normalize();
 			Vec3d bodyUp = rotate(bodyTilt, new Vec3d(0.0D, 1.0D, 0.0D)).normalize();
+			float reinforcementPulse = entity.getSpiderLegReinforcementPulse(index, tickDelta);
+			if (reinforcementPulse > 0.0F) {
+				root = root.add(bodyUp.multiply(reinforcementPulse * 0.045D));
+				foot = foot.add(radial.multiply(reinforcementPulse * 0.025D));
+			}
 			boolean pendingAssembly = entity.isSpiderLegPending(index) && !entity.isSpiderAwake();
 			if (pendingAssembly) {
 				Vec3d looseOffset = radial.multiply(0.12D).add(bodyUp.multiply(0.05D));
@@ -325,7 +331,7 @@ final class RingVehicleModelRenderer {
 			boolean frontFlippedLeg = localRadial.z > 0.70D;
 			Vec3d[] chain = solveSpiderLeg(root, foot, radial, bodyUp, ringLevel, frontFlippedLeg);
 			foot = chain[chain.length - 1];
-			Vec3d bodyMount = rotate(bodyTilt, localRadial.multiply(bodyRadius * 0.92D));
+			Vec3d bodyMount = rotate(bodyTilt, localRadial.multiply(bodyRadius * 1.01D));
 			if (pendingAssembly) {
 				bodyMount = bodyMount.add(radial.multiply(0.04D));
 			}
@@ -336,8 +342,12 @@ final class RingVehicleModelRenderer {
 							matrices, vertexConsumers, light);
 				}
 			}
-			renderSpiderIronConnector(bodyMount, root, 0.52F, bodyUp, radial,
-					matrices, vertexConsumers, light);
+			Vec3d connectorEnd = root.subtract(radial.multiply(0.24D));
+			if (bodyMount.distanceTo(connectorEnd) > 0.08D) {
+				renderSpiderIronConnector(bodyMount, connectorEnd,
+						0.32F + reinforcementPulse * 0.04F, bodyUp, radial,
+						matrices, vertexConsumers, light);
+			}
 			int legSkinTiles = ringLevel > 0 ? 5 : 3;
 			for (int segment = 0; segment < chain.length - 1; segment++) {
 				double startTrim = segment == 0 ? 0.24D : segment == 1 ? 0.215D : 0.195D;
@@ -347,7 +357,8 @@ final class RingVehicleModelRenderer {
 						frontFlippedLeg, legSkinTiles, startTrim, endTrim,
 						matrices, vertexConsumers, light);
 			}
-			renderSpiderJoint(root, jointState, 0.40F, matrices, vertexConsumers, light);
+			renderSpiderJoint(root, jointState, 0.40F + reinforcementPulse * 0.06F,
+					matrices, vertexConsumers, light);
 			renderSpiderJoint(chain[1], jointState, 0.36F, matrices, vertexConsumers, light);
 			renderSpiderJoint(chain[2], jointState, 0.33F, matrices, vertexConsumers, light);
 			Vec3d footCenter = foot.add(bodyUp.multiply(0.10D));

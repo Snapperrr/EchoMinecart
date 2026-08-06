@@ -6,12 +6,12 @@ import net.minecraft.item.Items;
 
 /** Central balance and presentation table for every spider-vehicle ammunition type. */
 public enum SpiderAmmoType {
-	COPPER(Items.COPPER_INGOT, 6.0F, 3.10D, 0.10D, 0xE77C56, 0.0F, ProjectileModel.LASER),
-	IRON(Items.IRON_INGOT, 8.0F, 3.20D, 0.12D, 0xDDE4E6, 0.0F, ProjectileModel.LASER),
-	GOLD(Items.GOLD_INGOT, 10.0F, 3.30D, 0.14D, 0xFFD83D, 0.0F, ProjectileModel.LASER),
-	AMETHYST(Items.AMETHYST_SHARD, 12.0F, 3.35D, 0.16D, 0xC984F4, 0.0F, ProjectileModel.LASER),
-	EMERALD(Items.EMERALD, 15.0F, 3.45D, 0.18D, 0x45E886, 0.0F, ProjectileModel.LASER),
-	DIAMOND(Items.DIAMOND, 18.0F, 3.55D, 0.21D, 0x60F5ED, 0.0F, ProjectileModel.LASER),
+	COPPER(Items.COPPER_INGOT, 6.0F, 3.10D, 0.20D, 0xE77C56, 0.0F, ProjectileModel.LASER),
+	IRON(Items.IRON_INGOT, 8.0F, 3.20D, 0.24D, 0xDDE4E6, 0.0F, ProjectileModel.LASER),
+	GOLD(Items.GOLD_INGOT, 10.0F, 3.30D, 0.28D, 0xFFD83D, 0.0F, ProjectileModel.LASER),
+	AMETHYST(Items.AMETHYST_SHARD, 12.0F, 3.35D, 0.32D, 0xC984F4, 0.0F, ProjectileModel.LASER),
+	EMERALD(Items.EMERALD, 15.0F, 3.45D, 0.36D, 0x45E886, 0.0F, ProjectileModel.LASER),
+	DIAMOND(Items.DIAMOND, 18.0F, 3.55D, 0.42D, 0x60F5ED, 0.0F, ProjectileModel.LASER),
 	END_CRYSTAL(Items.END_CRYSTAL, 30.0F, 1.85D, 0.38D, 0xF2A6FF, 3.0F, ProjectileModel.ITEM),
 	RESPAWN_ANCHOR(Items.RESPAWN_ANCHOR, 42.0F, 1.55D, 0.52D, 0x8C5CFF, 4.5F, ProjectileModel.BLOCK);
 

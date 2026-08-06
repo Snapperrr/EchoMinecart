@@ -110,7 +110,7 @@ public final class RingVehicleEntity extends Entity {
 	private static final double DISC_RENDER_CENTER_HEIGHT = 0.48D;
 	private static final double DISC_CART_VERTICAL_OFFSET = 0.10D;
 	private static final double DISC_PASSENGER_SEAT_DEPTH = 0.40D;
-	public static final double SPIDER_BODY_LIFT = 0.90D;
+	public static final double SPIDER_BODY_LIFT = 1.04D;
 	private static final double SPIDER_SEAT_OFFSET = -0.57D;
 	private static final float SPIDER_SUSPENSION_REST_OFFSET = -0.075F;
 	public static final int SPIDER_LEG_COUNT = 8;
@@ -122,7 +122,7 @@ public final class RingVehicleEntity extends Entity {
 	private static final int[] SPIDER_INSTALL_ORDER = {0, 4, 2, 6, 1, 5, 3, 7};
 	private static final double SPIDER_LEG_REACH_RATIO = 5.10D;
 	private static final double SPIDER_LEG_ELASTIC_EXTENSION = 1.15D;
-	public static final double SPIDER_LEG_ROOT_RADIUS_RATIO = 1.16D;
+	public static final double SPIDER_LEG_ROOT_RADIUS_RATIO = 1.19D;
 	private static final double SPIDER_STRIDE_RATIO = 0.72D;
 	private static final double DISC_LIFT_THRESHOLD = 0.62D;
 	private static final double DISC_STALL_THRESHOLD = 0.56D;
@@ -189,7 +189,7 @@ public final class RingVehicleEntity extends Entity {
 	private static final int SPIDER_LANDING_RECOVERY_TICKS = 8;
 	private static final int SPIDER_SURFACE_GRACE_TICKS = 4;
 	private static final float SPIDER_DEPLOY_SPEED = 0.055F;
-	private static final int SPIDER_LEG_RETRACT_DURATION_TICKS = 12;
+	private static final int SPIDER_LEG_REINFORCE_DURATION_TICKS = 12;
 	private static final double SPIDER_BODY_NORMAL_STEP = Math.toRadians(8.0D);
 	private static final double SPIDER_TRANSITION_NORMAL_STEP = Math.toRadians(5.0D);
 	// Tracked values are the network-visible projection of the larger transient state below.
@@ -204,11 +204,12 @@ public final class RingVehicleEntity extends Entity {
 	private static final TrackedData<Boolean> DISC_MODE = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 	private static final TrackedData<Boolean> SPIDER_MODE = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 	private static final TrackedData<Boolean> SPIDER_AWAKE = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+	private static final TrackedData<Boolean> SPIDER_ASSEMBLY_MODE = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 	private static final TrackedData<Boolean> SPIDER_SLEEP_TRANSITION = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 	private static final TrackedData<Integer> SPIDER_LEG_MASK = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
 	private static final TrackedData<Integer> SPIDER_PENDING_LEG = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
-	private static final TrackedData<Integer> SPIDER_RETRACTING_LEG = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
-	private static final TrackedData<Integer> SPIDER_LEG_RETRACT_TICKS = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
+	private static final TrackedData<Integer> SPIDER_REINFORCING_LEG = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
+	private static final TrackedData<Integer> SPIDER_LEG_REINFORCE_TICKS = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
 	private static final TrackedData<Float> SPIDER_DEPLOY_PROGRESS = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
 	private static final TrackedData<Float> SPIDER_GAIT_PHASE = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
 	private static final TrackedData<Float> SPIDER_BODY_COMPRESSION = DataTracker.registerData(RingVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
@@ -427,11 +428,12 @@ public final class RingVehicleEntity extends Entity {
 		builder.add(DISC_MODE, false);
 		builder.add(SPIDER_MODE, false);
 		builder.add(SPIDER_AWAKE, false);
+		builder.add(SPIDER_ASSEMBLY_MODE, false);
 		builder.add(SPIDER_SLEEP_TRANSITION, false);
 		builder.add(SPIDER_LEG_MASK, 0);
 		builder.add(SPIDER_PENDING_LEG, -1);
-		builder.add(SPIDER_RETRACTING_LEG, -1);
-		builder.add(SPIDER_LEG_RETRACT_TICKS, 0);
+		builder.add(SPIDER_REINFORCING_LEG, -1);
+		builder.add(SPIDER_LEG_REINFORCE_TICKS, 0);
 		builder.add(SPIDER_DEPLOY_PROGRESS, 0.0F);
 		builder.add(SPIDER_GAIT_PHASE, 0.0F);
 		builder.add(SPIDER_BODY_COMPRESSION, 0.0F);
@@ -1121,12 +1123,12 @@ public final class RingVehicleEntity extends Entity {
 		dataTracker.set(SPIDER_BODY_COMPRESSION, 0.0F);
 		setSpiderBodyNormal(Vec3d.of(Direction.UP.getVector()));
 		spiderFeetInitialized = false;
-		int retractTicks = dataTracker.get(SPIDER_LEG_RETRACT_TICKS);
-		if (retractTicks > 0) {
-			retractTicks--;
-			dataTracker.set(SPIDER_LEG_RETRACT_TICKS, retractTicks);
-			if (retractTicks == 0) {
-				dataTracker.set(SPIDER_RETRACTING_LEG, -1);
+		int reinforceTicks = dataTracker.get(SPIDER_LEG_REINFORCE_TICKS);
+		if (reinforceTicks > 0) {
+			reinforceTicks--;
+			dataTracker.set(SPIDER_LEG_REINFORCE_TICKS, reinforceTicks);
+			if (reinforceTicks == 0) {
+				dataTracker.set(SPIDER_REINFORCING_LEG, -1);
 			}
 		}
 		updateCollisionBounds();
@@ -1147,6 +1149,7 @@ public final class RingVehicleEntity extends Entity {
 				Vec3d.of(Direction.UP.getVector()), Math.toRadians(12.0D)));
 		if (progress <= 0.0F) {
 			dataTracker.set(SPIDER_AWAKE, false);
+			dataTracker.set(SPIDER_ASSEMBLY_MODE, false);
 			dataTracker.set(SPIDER_SLEEP_TRANSITION, false);
 			dataTracker.set(SPIDER_DEPLOY_PROGRESS, 0.0F);
 			spiderFeetInitialized = false;
@@ -5661,9 +5664,11 @@ public final class RingVehicleEntity extends Entity {
 
 	private ActionResult installSpiderLeg(PlayerEntity player, ItemStack held, SpiderLegItem legItem,
 			Vec3d hitOffset) {
-		if (isSpiderAwake()) {
+		if (isSpiderAwake() || isSpiderSleepTransition()) {
 			if (!getWorld().isClient()) {
-				player.sendMessage(Text.translatable("message.echominecart.spider_leg_sleep_first"), true);
+				player.sendMessage(Text.translatable(isSpiderSleepTransition()
+						? "message.echominecart.spider_transition_busy"
+						: "message.echominecart.spider_leg_sleep_first"), true);
 			}
 			return ActionResult.success(getWorld().isClient());
 		}
@@ -5693,6 +5698,7 @@ public final class RingVehicleEntity extends Entity {
 			return ActionResult.success(getWorld().isClient());
 		}
 		if (!getWorld().isClient()) {
+			dataTracker.set(SPIDER_ASSEMBLY_MODE, true);
 			dataTracker.set(SPIDER_PENDING_LEG, legIndex);
 			spiderFeetInitialized = false;
 			if (!player.getAbilities().creativeMode) {
@@ -5711,6 +5717,8 @@ public final class RingVehicleEntity extends Entity {
 		}
 		if (getSpiderPendingLegIndex() >= 0) {
 			fusePendingSpiderLeg(player);
+		} else if (isSpiderAssemblyMode()) {
+			completeSpiderAssembly(player);
 		} else if (isSpiderAwake()) {
 			sleepSpider(player);
 		} else {
@@ -5726,26 +5734,56 @@ public final class RingVehicleEntity extends Entity {
 		dataTracker.set(SPIDER_LEG_MASK, getSpiderInstalledLegMask() | 1 << legIndex);
 		spiderLegHealth[legIndex] = SPIDER_LEG_MAX_HEALTH;
 		dataTracker.set(SPIDER_PENDING_LEG, -1);
-		dataTracker.set(SPIDER_RETRACTING_LEG, legIndex);
-		dataTracker.set(SPIDER_LEG_RETRACT_TICKS, SPIDER_LEG_RETRACT_DURATION_TICKS);
+		dataTracker.set(SPIDER_REINFORCING_LEG, legIndex);
+		dataTracker.set(SPIDER_LEG_REINFORCE_TICKS, SPIDER_LEG_REINFORCE_DURATION_TICKS);
 		spiderFeetInitialized = false;
 		getWorld().playSound(null, getX(), getY() + 0.45D, getZ(), SoundEvents.BLOCK_ANVIL_USE,
 				SoundCategory.NEUTRAL, 0.88F, 0.68F);
 		getWorld().playSound(null, getX(), getY() + 0.45D, getZ(), SoundEvents.BLOCK_CHAIN_PLACE,
 				SoundCategory.NEUTRAL, 0.62F, 1.18F);
+		if (getWorld() instanceof ServerWorld world) {
+			Vec3d joint = spiderLegRootWorld(legIndex);
+			world.spawnParticles(ParticleTypes.ELECTRIC_SPARK, joint.x, joint.y, joint.z,
+					10, 0.16D, 0.16D, 0.16D, 0.055D);
+			world.spawnParticles(ParticleTypes.WAX_ON, joint.x, joint.y, joint.z,
+					5, 0.10D, 0.10D, 0.10D, 0.025D);
+		}
 		player.sendMessage(Text.translatable("message.echominecart.spider_leg_fused",
 				getSpiderInstalledLegCount(), SPIDER_LEG_COUNT), true);
+		if (getSpiderInstalledLegMask() == SPIDER_FULL_LEG_MASK) {
+			player.sendMessage(Text.translatable("message.echominecart.spider_assembly_ready"), false);
+		}
+	}
+
+	private void completeSpiderAssembly(PlayerEntity player) {
+		if (getSpiderInstalledLegMask() != SPIDER_FULL_LEG_MASK) {
+			player.sendMessage(Text.translatable("message.echominecart.spider_leg_incomplete",
+					getSpiderInstalledLegCount(), SPIDER_LEG_COUNT), true);
+			return;
+		}
+		dataTracker.set(SPIDER_AWAKE, false);
+		dataTracker.set(SPIDER_SLEEP_TRANSITION, true);
+		dataTracker.set(SPIDER_DEPLOY_PROGRESS, 1.0F);
+		dataTracker.set(SPIDER_REINFORCING_LEG, -1);
+		dataTracker.set(SPIDER_LEG_REINFORCE_TICKS, 0);
+		spiderFeetInitialized = false;
+		setVelocity(Vec3d.ZERO);
+		playSpiderRetractionSounds();
+		player.sendMessage(Text.translatable("message.echominecart.spider_assembly_stowing"), true);
 	}
 
 	private void wakeSpider(PlayerEntity player) {
-		if (getSpiderInstalledLegCount() <= 0) {
-			player.sendMessage(Text.translatable("message.echominecart.spider_leg_none"), true);
+		if (getSpiderInstalledLegMask() != SPIDER_FULL_LEG_MASK) {
+			dataTracker.set(SPIDER_ASSEMBLY_MODE, true);
+			player.sendMessage(Text.translatable("message.echominecart.spider_leg_incomplete",
+					getSpiderInstalledLegCount(), SPIDER_LEG_COUNT), true);
 			return;
 		}
 		dataTracker.set(SPIDER_AWAKE, true);
+		dataTracker.set(SPIDER_ASSEMBLY_MODE, false);
 		dataTracker.set(SPIDER_SLEEP_TRANSITION, false);
-		dataTracker.set(SPIDER_RETRACTING_LEG, -1);
-		dataTracker.set(SPIDER_LEG_RETRACT_TICKS, 0);
+		dataTracker.set(SPIDER_REINFORCING_LEG, -1);
+		dataTracker.set(SPIDER_LEG_REINFORCE_TICKS, 0);
 		dataTracker.set(SPIDER_DEPLOY_PROGRESS, 0.0F);
 		spiderFeetInitialized = false;
 		setVelocity(Vec3d.ZERO);
@@ -5761,18 +5799,23 @@ public final class RingVehicleEntity extends Entity {
 	}
 
 	private void sleepSpider(PlayerEntity player) {
+		dataTracker.set(SPIDER_ASSEMBLY_MODE, false);
 		dataTracker.set(SPIDER_AWAKE, true);
 		dataTracker.set(SPIDER_SLEEP_TRANSITION, true);
 		dataTracker.set(SPIDER_DEPLOY_PROGRESS,
 				MathHelper.clamp(Math.max(0.35F, getSpiderDeployProgress()), 0.0F, 1.0F));
 		setVelocity(Vec3d.ZERO);
+		playSpiderRetractionSounds();
+		player.sendMessage(Text.translatable("message.echominecart.spider_vehicle_sleeping_enabled"), true);
+	}
+
+	private void playSpiderRetractionSounds() {
 		getWorld().playSound(null, getX(), getY() + 0.35D, getZ(), SoundEvents.ITEM_MACE_SMASH_GROUND_HEAVY,
 				SoundCategory.NEUTRAL, 0.86F, 1.12F);
 		getWorld().playSound(null, getX(), getY(), getZ(), SoundEvents.BLOCK_PISTON_CONTRACT,
 				SoundCategory.NEUTRAL, 0.94F, 0.60F);
 		getWorld().playSound(null, getX(), getY(), getZ(), SoundEvents.BLOCK_IRON_TRAPDOOR_CLOSE,
 				SoundCategory.NEUTRAL, 0.82F, 0.72F);
-		player.sendMessage(Text.translatable("message.echominecart.spider_vehicle_sleeping_enabled"), true);
 	}
 
 	private int spiderLegIndexAt(PlayerEntity player, Vec3d hitOffset) {
@@ -6064,9 +6107,22 @@ public final class RingVehicleEntity extends Entity {
 		ServerPlayNetworking.send(player,
 				new SpiderWeaponFiredPayload(screenImpact, ammo.explosive(), ammo.color()));
 		if (ammo.explosive()) {
+			boolean anchor = ammo == SpiderAmmoType.RESPAWN_ANCHOR;
 			world.playSound(null, muzzle.x, muzzle.y, muzzle.z,
 					SoundEvents.ENTITY_FIREWORK_ROCKET_LARGE_BLAST,
-					SoundCategory.PLAYERS, 1.15F, 0.72F);
+					SoundCategory.PLAYERS, anchor ? 2.10F : 1.75F, anchor ? 0.52F : 0.64F);
+			world.playSound(null, muzzle.x, muzzle.y, muzzle.z,
+					SoundEvents.ENTITY_WITHER_SHOOT,
+					SoundCategory.PLAYERS, anchor ? 1.55F : 1.28F, anchor ? 0.48F : 0.62F);
+			if (anchor) {
+				world.playSound(null, muzzle.x, muzzle.y, muzzle.z,
+						SoundEvents.ENTITY_GENERIC_EXPLODE,
+						SoundCategory.PLAYERS, 1.65F, 0.56F);
+			} else {
+				world.playSound(null, muzzle.x, muzzle.y, muzzle.z,
+						SoundEvents.ENTITY_WARDEN_SONIC_BOOM,
+						SoundCategory.PLAYERS, 1.08F, 0.76F);
+			}
 		} else {
 			float pressure = MathHelper.clamp((ammo.damage() - 6.0F) / 12.0F, 0.0F, 1.0F);
 			world.playSound(null, muzzle.x, muzzle.y, muzzle.z,
@@ -6511,6 +6567,10 @@ public final class RingVehicleEntity extends Entity {
 		return isSpiderMode() && dataTracker.get(SPIDER_SLEEP_TRANSITION);
 	}
 
+	public boolean isSpiderAssemblyMode() {
+		return isSpiderMode() && dataTracker.get(SPIDER_ASSEMBLY_MODE);
+	}
+
 	public int getSpiderInstalledLegMask() {
 		return dataTracker.get(SPIDER_LEG_MASK) & SPIDER_FULL_LEG_MASK;
 	}
@@ -6526,17 +6586,17 @@ public final class RingVehicleEntity extends Entity {
 	}
 
 	public int getSpiderRenderedLegMask() {
-		if (isSpiderAwake()) {
+		if (isSpiderAwake() || isSpiderAssemblyMode() || isSpiderSleepTransition()) {
 			return getSpiderVisibleLegMask();
 		}
 		int mask = 0;
 		int pending = getSpiderPendingLegIndex();
-		int retracting = getSpiderRetractingLegIndex();
+		int reinforcing = getSpiderReinforcingLegIndex();
 		if (pending >= 0) {
 			mask |= 1 << pending;
 		}
-		if (retracting >= 0) {
-			mask |= 1 << retracting;
+		if (reinforcing >= 0) {
+			mask |= 1 << reinforcing;
 		}
 		return mask;
 	}
@@ -6554,29 +6614,35 @@ public final class RingVehicleEntity extends Entity {
 		return index == getSpiderPendingLegIndex();
 	}
 
-	public int getSpiderRetractingLegIndex() {
-		int index = dataTracker.get(SPIDER_RETRACTING_LEG);
+	public int getSpiderReinforcingLegIndex() {
+		int index = dataTracker.get(SPIDER_REINFORCING_LEG);
 		return index >= 0 && index < SPIDER_LEG_COUNT ? index : -1;
 	}
 
-	public boolean isSpiderLegRetracting(int index) {
-		return index == getSpiderRetractingLegIndex()
-				&& dataTracker.get(SPIDER_LEG_RETRACT_TICKS) > 0;
+	public float getSpiderLegReinforcementPulse(int index, float tickDelta) {
+		if (index != getSpiderReinforcingLegIndex()) {
+			return 0.0F;
+		}
+		float ticks = dataTracker.get(SPIDER_LEG_REINFORCE_TICKS)
+				- MathHelper.clamp(tickDelta, 0.0F, 1.0F);
+		float progress = 1.0F - MathHelper.clamp(
+				ticks / SPIDER_LEG_REINFORCE_DURATION_TICKS, 0.0F, 1.0F);
+		return MathHelper.sin(progress * (float) Math.PI);
 	}
 
 	public float getSpiderLegRenderProgress(int index) {
 		if (index < 0 || index >= SPIDER_LEG_COUNT) {
 			return 0.0F;
 		}
+		if (isSpiderSleepTransition()) {
+			return isSpiderAwake() ? 1.0F : getSpiderDeployProgress();
+		}
 		if (isSpiderAwake()) {
-			return isSpiderSleepTransition() ? 1.0F : getSpiderDeployProgress();
+			return getSpiderDeployProgress();
 		}
-		if (isSpiderLegPending(index)) {
+		if (isSpiderAssemblyMode()
+				&& (getSpiderVisibleLegMask() & 1 << index) != 0) {
 			return 1.0F;
-		}
-		if (isSpiderLegRetracting(index)) {
-			return MathHelper.clamp(dataTracker.get(SPIDER_LEG_RETRACT_TICKS)
-					/ (float) SPIDER_LEG_RETRACT_DURATION_TICKS, 0.0F, 1.0F);
 		}
 		return 0.0F;
 	}
@@ -6597,8 +6663,8 @@ public final class RingVehicleEntity extends Entity {
 		}
 		dataTracker.set(SPIDER_AWAKE, false);
 		dataTracker.set(SPIDER_SLEEP_TRANSITION, false);
-		dataTracker.set(SPIDER_RETRACTING_LEG, -1);
-		dataTracker.set(SPIDER_LEG_RETRACT_TICKS, 0);
+		dataTracker.set(SPIDER_REINFORCING_LEG, -1);
+		dataTracker.set(SPIDER_LEG_REINFORCE_TICKS, 0);
 		dataTracker.set(SPIDER_DEPLOY_PROGRESS, 0.0F);
 		spiderFeetInitialized = false;
 		updateCollisionBounds();
@@ -6657,7 +6723,7 @@ public final class RingVehicleEntity extends Entity {
 
 	private Vec3d dormantSpiderFootOffset(int index) {
 		Vec3d radial = spiderLegRadial(new Vec3d(0.0D, 0.0D, 1.0D), index);
-		boolean assemblyPose = isSpiderLegPending(index) || isSpiderLegRetracting(index);
+		boolean assemblyPose = isSpiderAssemblyMode() || isSpiderLegPending(index);
 		double pendingScale = assemblyPose ? 0.63D : 0.69D;
 		return radial.multiply(spiderLegReach(getRingLevel()) * pendingScale)
 				.add(0.0D, -getRingDiameter() * 0.5D
@@ -7294,6 +7360,7 @@ public final class RingVehicleEntity extends Entity {
 		nbt.putBoolean("HighGear", isHighGear());
 		nbt.putInt("RingLevel", getRingLevel());
 		nbt.putBoolean("SpiderMode", isSpiderMode());
+		nbt.putBoolean("SpiderAssemblyMode", isSpiderAssemblyMode());
 		nbt.putInt("SpiderLegMask", getSpiderInstalledLegMask());
 		nbt.putInt("SpiderPendingLeg", getSpiderPendingLegIndex());
 		nbt.putInt("SpiderExplorationMode", getSpiderExplorationMode());
@@ -7315,8 +7382,8 @@ public final class RingVehicleEntity extends Entity {
 		setRingLevel(nbt.getInt("RingLevel"));
 		dataTracker.set(SPIDER_MODE, nbt.getBoolean("SpiderMode"));
 		dataTracker.set(SPIDER_SLEEP_TRANSITION, false);
-		dataTracker.set(SPIDER_RETRACTING_LEG, -1);
-		dataTracker.set(SPIDER_LEG_RETRACT_TICKS, 0);
+		dataTracker.set(SPIDER_REINFORCING_LEG, -1);
+		dataTracker.set(SPIDER_LEG_REINFORCE_TICKS, 0);
 		dataTracker.set(SPIDER_EXPLORATION_MODE, nbt.contains("SpiderExplorationMode")
 				? MathHelper.clamp(nbt.getInt("SpiderExplorationMode"),
 						SPIDER_EXPLORATION_AUTO, SPIDER_EXPLORATION_DOWN)
@@ -7331,6 +7398,10 @@ public final class RingVehicleEntity extends Entity {
 			}
 			dataTracker.set(SPIDER_LEG_MASK, legMask);
 			dataTracker.set(SPIDER_PENDING_LEG, pendingLeg);
+			boolean assemblyMode = nbt.contains("SpiderAssemblyMode")
+					? nbt.getBoolean("SpiderAssemblyMode")
+					: legMask != SPIDER_FULL_LEG_MASK;
+			dataTracker.set(SPIDER_ASSEMBLY_MODE, assemblyMode || pendingLeg >= 0);
 			spiderBodyHealth = nbt.contains("SpiderBodyHealth")
 					? MathHelper.clamp(nbt.getFloat("SpiderBodyHealth"), 1.0F, SPIDER_BODY_MAX_HEALTH)
 					: SPIDER_BODY_MAX_HEALTH;
@@ -7340,6 +7411,7 @@ public final class RingVehicleEntity extends Entity {
 						: SPIDER_LEG_MAX_HEALTH;
 			}
 		} else {
+			dataTracker.set(SPIDER_ASSEMBLY_MODE, false);
 			dataTracker.set(SPIDER_LEG_MASK, 0);
 			dataTracker.set(SPIDER_PENDING_LEG, -1);
 			spiderBodyHealth = SPIDER_BODY_MAX_HEALTH;
@@ -7367,8 +7439,8 @@ public final class RingVehicleEntity extends Entity {
 		readItemData(nbt);
 		if (isSpiderMode()) {
 			boolean sleepTransition = nbt.getBoolean("SpiderSleepTransition");
-			boolean awake = sleepTransition
-					|| !nbt.contains("SpiderAwake") || nbt.getBoolean("SpiderAwake");
+			boolean awake = !isSpiderAssemblyMode() && (sleepTransition
+					|| !nbt.contains("SpiderAwake") || nbt.getBoolean("SpiderAwake"));
 			dataTracker.set(SPIDER_AWAKE, awake);
 			dataTracker.set(SPIDER_SLEEP_TRANSITION, sleepTransition);
 			dataTracker.set(SPIDER_DEPLOY_PROGRESS, awake

@@ -39,6 +39,7 @@ public final class SpiderRingVehicleRecipe extends SpecialCraftingRecipe {
 		data.putBoolean("DiscMode", false);
 		data.putInt("SpiderLegMask", 0);
 		data.putInt("SpiderPendingLeg", -1);
+		data.putBoolean("SpiderAssemblyMode", true);
 		data.putBoolean("SpiderAwake", false);
 		data.putFloat("SpiderDeployProgress", 0.0F);
 		data.remove("DiscExtraMinecarts");

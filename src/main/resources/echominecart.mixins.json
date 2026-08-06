@@ -18,6 +18,7 @@
 	],
 	"mixins": [
 		"AbstractMinecartEntityMixin",
+		"BuildingWandBlockItemMixin",
 		"ChestBlockMixin",
 		"EntityPassengerMixin",
 		"HopperBlockEntityMixin",

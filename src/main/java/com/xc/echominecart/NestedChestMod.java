@@ -2,6 +2,7 @@ package com.xc.echominecart;
 
 import com.mojang.logging.LogUtils;
 import com.xc.echominecart.EchoMinecartRegistry;
+import com.xc.echominecart.building.BuildingWandManager;
 import com.xc.echominecart.debug.NestedChestDebugCommands;
 import com.xc.echominecart.haul.HaulManager;
 import com.xc.echominecart.network.CarriageSyncPayload;
@@ -133,6 +134,7 @@ public class NestedChestMod implements ModInitializer {
 		});
 		NestedChestDebugCommands.register();
 		EchoMinecartRegistry.register();
+		BuildingWandManager.initialize();
 	}
 
 	private static void receiveRingVehicleAction(RingVehicleActionPayload payload, ServerPlayNetworking.Context context) {

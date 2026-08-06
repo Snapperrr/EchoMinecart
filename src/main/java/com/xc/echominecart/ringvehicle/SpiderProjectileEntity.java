@@ -3,6 +3,7 @@ package com.xc.echominecart.ringvehicle;
 import com.xc.echominecart.EchoMinecartRegistry;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
@@ -30,8 +31,11 @@ public final class SpiderProjectileEntity extends Entity {
 	private static final TrackedData<Integer> AMMO_TYPE = DataTracker.registerData(
 			SpiderProjectileEntity.class, TrackedDataHandlerRegistry.INTEGER);
 	private static final int MAX_LIFETIME_TICKS = 80;
+	private static final double EMERALD_HOMING_RADIUS = 8.0D;
+	private static final double EMERALD_HOMING_BLEND = 0.30D;
 	private UUID ownerUuid;
 	private int directSpiderId = -1;
+	private int homingTargetId = -1;
 
 	public SpiderProjectileEntity(EntityType<? extends SpiderProjectileEntity> type, World world) {
 		super(type, world);
@@ -71,6 +75,11 @@ public final class SpiderProjectileEntity extends Entity {
 			setPosition(end);
 			return;
 		}
+		if (getAmmoType() == SpiderAmmoType.EMERALD) {
+			velocity = steerTowardHomingTarget(velocity);
+			setVelocity(velocity);
+			end = start.add(velocity);
+		}
 
 		Collision collision = findCollision(start, end);
 		if (collision != null) {
@@ -81,6 +90,63 @@ public final class SpiderProjectileEntity extends Entity {
 		setPosition(end);
 		setVelocity(velocity.multiply(0.998D));
 		spawnTrail();
+	}
+
+	private Vec3d steerTowardHomingTarget(Vec3d velocity) {
+		Entity target = currentHomingTarget();
+		if (target == null) {
+			target = acquireHomingTarget();
+			homingTargetId = target == null ? -1 : target.getId();
+		}
+		if (target == null) {
+			return velocity;
+		}
+		Vec3d desired = target.getBoundingBox().getCenter().subtract(getPos());
+		if (desired.lengthSquared() < 1.0E-5D) {
+			return velocity;
+		}
+		double speed = velocity.length();
+		Vec3d steered = velocity.normalize().lerp(desired.normalize(), EMERALD_HOMING_BLEND);
+		return steered.lengthSquared() < 1.0E-5D ? velocity : steered.normalize().multiply(speed);
+	}
+
+	private Entity currentHomingTarget() {
+		if (homingTargetId < 0 || !(getWorld() instanceof ServerWorld world)) {
+			return null;
+		}
+		Entity target = world.getEntityById(homingTargetId);
+		if (!isHomingCandidate(target)
+				|| target.squaredDistanceTo(this) > EMERALD_HOMING_RADIUS * EMERALD_HOMING_RADIUS) {
+			homingTargetId = -1;
+			return null;
+		}
+		return target;
+	}
+
+	private Entity acquireHomingTarget() {
+		Box searchBox = getBoundingBox().expand(EMERALD_HOMING_RADIUS);
+		Entity nearest = null;
+		double nearestDistance = EMERALD_HOMING_RADIUS * EMERALD_HOMING_RADIUS;
+		for (Entity candidate : getWorld().getOtherEntities(this, searchBox, this::isHomingCandidate)) {
+			double distance = candidate.squaredDistanceTo(this);
+			if (distance < nearestDistance) {
+				nearest = candidate;
+				nearestDistance = distance;
+			}
+		}
+		return nearest;
+	}
+
+	private boolean isHomingCandidate(Entity entity) {
+		if (entity == null || !isValidTarget(entity)) {
+			return false;
+		}
+		if (entity instanceof RingVehicleEntity vehicle) {
+			return vehicle.isSpiderMode();
+		}
+		return entity instanceof LivingEntity
+				&& !(entity.getVehicle() instanceof RingVehicleEntity vehicle && vehicle.isSpiderMode())
+				&& entity.canBeHitByProjectile();
 	}
 
 	private Collision findCollision(Vec3d start, Vec3d end) {

@@ -2,6 +2,7 @@ package com.xc.echominecart;
 
 import com.xc.echominecart.carriage.CarriageManager;
 import com.xc.echominecart.item.BoosterRodItem;
+import com.xc.echominecart.item.BuildingWandItem;
 import com.xc.echominecart.item.MinecartLinkToolItem;
 import com.xc.echominecart.item.RailRepairToolItem;
 import com.xc.echominecart.item.ReinforcedClutchItem;
@@ -83,6 +84,8 @@ public final class EchoMinecartRegistry {
 	public static final TransportBinderItem TRANSPORT_BINDER = registerItem("transport_binder", new TransportBinderItem(new Item.Settings().maxCount(1)));
 	public static final BoosterRodItem BOOSTER_ROD = registerItem("booster_rod", new BoosterRodItem(new Item.Settings().maxCount(1)));
 	public static final RailRepairToolItem RAIL_REPAIR_TOOL = registerItem("rail_repair_tool", new RailRepairToolItem(new Item.Settings().maxCount(1)));
+	public static final BuildingWandItem BUILDING_WAND = registerItem("building_wand",
+			new BuildingWandItem(new Item.Settings().maxCount(1)));
 	public static final Item REINFORCED_CLUTCH = registerItem("reinforced_clutch",
 			new ReinforcedClutchItem(new Item.Settings().maxDamage(360)));
 	public static final SpiderLegItem SPIDER_RAIL_LEG = registerItem("spider_rail_leg",
@@ -147,6 +150,7 @@ public final class EchoMinecartRegistry {
 			entries.add(TRANSPORT_BINDER);
 			entries.add(BOOSTER_ROD);
 			entries.add(RAIL_REPAIR_TOOL);
+			entries.add(BUILDING_WAND);
 			entries.add(REINFORCED_CLUTCH);
 			entries.add(SPIDER_RAIL_LEG);
 			entries.add(SPIDER_POWERED_RAIL_LEG);
@@ -158,7 +162,6 @@ public final class EchoMinecartRegistry {
 			entries.add(LAVA_PROOF_RING_POWERED_RAIL_VEHICLE);
 		});
 		ServerTickEvents.END_SERVER_TICK.register(CarriageManager::serverTick);
-		ServerTickEvents.END_SERVER_TICK.register(ReinforcedClutchItem::serverTick);
 		UseBlockCallback.EVENT.register(EchoMinecartRegistry::useBlock);
 		UseEntityCallback.EVENT.register(EchoMinecartRegistry::useEntity);
 		AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) ->
